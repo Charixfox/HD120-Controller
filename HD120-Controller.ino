@@ -1,11 +1,11 @@
 
-/* Yay Circles of Dooooooom! Gah. Anyway... after remapping, things should look kind of like:
+/* Yay Circles of Dooooooom! Gah. Anyway... after remapping, things should address kind of like:
  *          0  11  
  *        1      10
-  *     2          9
-  *     3          8
-  *       4      7
-  *         5  6
+ *      2          9
+ *      3          8
+ *        4      7
+ *          5  6
  *  
  */
 
@@ -44,7 +44,8 @@ FASTLED_USING_NAMESPACE
 //---- SettingItems ----------------------------------------------
 // Global  ================\
 // 0   = Brightness
-// 1-7 = Future Use
+// 1   = Global frame rotation
+// 2-7 = Future Use
 // Per Fan ================\
 // 0   = Mode
 // 1-7 = Mode-dependant data
@@ -88,12 +89,9 @@ void mode2(uint8_t thisFan) {
 
 //--- mode3() -----------------------------------------------------------------------------------------------
 // Rotating full rainbow
-// Settings: 1 = Speed 1-19
+// Settings: None
 void mode3(uint8_t thisFan) {
-  gSettings[thisFan+1][1] = constrain(gSettings[thisFan+1][1],1,19); // Keep the speed in range
-  // TODO: Consider default static settings to load on mode-changes so we don't have to use time to check every frame
-  // Ugly speed calculation is ugly. TODO: Does this even work?
-  fan[thisFan][0]->operator()(0,LedsPerFan-1).fill_rainbow((seconds16() % (255 / gSettings[thisFan+1][1])) * gSettings[thisFan+1][1],19);
+  fan[thisFan][0]->operator()(0,LedsPerFan-1).fill_rainbow((gSettings[0][1]),19);
 }
 
 //===========================================================================================================
@@ -114,8 +112,7 @@ int inByte = 0;
 
 
 
-
-
+//==== Arduino setup Function ===============
 void setup() {
   delay(3000); // 3 second delay for recovery -> This is IMPORTANT
   FastLED.addLeds<LED_TYPE,DATA_PIN,COLOR_ORDER>(actual, NUM_LEDS); //.setCorrection(TypicalLEDStrip); // The color correction makes things "Video correct" but we want pretty, not video.
@@ -127,6 +124,7 @@ void setup() {
   Serial.begin(115200);
 }
 
+//==== Arduino Main Loop ====================
 void loop() {
   //fan[0][0]->operator()(0,2) = CRGB::Red; //Poke several LEDs in one fan
   //leds[4] = CRGB::Green; //Address the full strip directly
@@ -210,6 +208,7 @@ void remap() {
 // Primary container to step through the fans and 
 // call the mode function for each one
 void processFans() {
+  gSettings[0][1]++; //Roll the frame counter up
   for (uint8_t i = 0; i < NumberOfFans; i++) { // Step through each fan
     if (gSettings[i+1][0] >= NumberOfModes) { gSettings[i+1][0] = 0; } // Sanity check.
     modefun[gSettings[i+1][0]](i);
