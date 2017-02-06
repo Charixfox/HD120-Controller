@@ -6,7 +6,16 @@
  *      3          8
  *        4      7
  *          5  6
+ *          
+ *  Version score 0.1.1
+ *  Compiled size: 11,736
  *  
+ *  TODO...
+ *  - EEPROM storage and loading of settings to persist the settings between system boots.
+ *  --- The EEPROM on an Arduino is rated for a minimum of 100,000 write cycles. This means even if somebody changed it 50 times a day every day, 
+ *  --- it would last over five years.
+ *  - Multi-Fan coordination modes. For example a chaser that traverses fans and is side-aware.
+ *  - Develop better control protocol and communication system and possibly a PC program. ... Yeah, right. Halp? Anyone?
  */
 
 #define FASTLED_INTERNAL
@@ -19,7 +28,7 @@ FASTLED_USING_NAMESPACE
 #define COLOR_ORDER         GRB     // DO NOT CHANGE for HD120 RGB unless hardware changes occur
 #define FRAMES_PER_SECOND   60      // Coding out to 72 LEDs takes just about 3ms, so this works without interrupt issues.
 #define BRIGHTNESS          128     // This is a safe brightness level for one fan powered wholly by USB.
-#define NumberOfFans        6       // We will limit this to absolutely no more than one hub per controller because wiring two hubs together is a pain
+#define NumberOfFans        6       // We will limit this to absolutely no more than one hub per controller because wiring two hubs together is a pain and would mess up the timing
 #define LedsPerFan          12      // 12 for HD120 RGB.
 #define NUM_LEDS            (NumberOfFans * LedsPerFan)
 
@@ -44,7 +53,7 @@ FASTLED_USING_NAMESPACE
 //---- SettingItems ----------------------------------------------
 // Global  ================\
 // 0   = Brightness
-// 1   = Global frame rotation
+// 1   = Global frame rotation 0-255 repeating - Approx 60 units per second, so cycles in just over four seconds.
 // 2-7 = Future Use
 // Per Fan ================\
 // 0   = Mode
@@ -58,11 +67,15 @@ CRGBArray<NUM_LEDS> actual;  // Display this array after mapping "leds" to "actu
 CRGBSet *fan[NumberOfFans][SubSetsPerFan];  //Fan Subset Array
 uint8_t gSettings[SettingGroups][SettingItems]; //Settings Array
 
-#define NumberOfModes       4 //Raise this as modes are created. Used to sanity-check settings.
+#define NumberOfModes       6 //Raise this as modes are created. Used to sanity-check settings.
 //===========================================================================================================
 // Mode Functions
 //===========================================================================================================
 //In order for the pointers to work, all modes need to be defined first. 
+// fan[0][0]->operator()(0,2) = CRGB::Red; //Poke several LEDs in one fan
+// leds[4] = CRGB::Green; //Address the full strip directly
+// (*fan[0][1])[3] = CRGB::Gray; //Address one specific LED in one fan
+
 
 //--- mode0() -----------------------------------------------------------------------------------------------
 // Angry Myia Mode 
@@ -94,6 +107,26 @@ void mode3(uint8_t thisFan) {
   fan[thisFan][0]->operator()(0,LedsPerFan-1).fill_rainbow((gSettings[0][1]),19);
 }
 
+//--- mode4() -----------------------------------------------------------------------------------------------
+// Over the rainbow Mode 
+// A simple 10 second fade through all the colors and back.
+// Settings: None
+void mode4(uint8_t thisFan) { 
+  fan[thisFan][0]->operator()(0,LedsPerFan-1) = CHSV(beatsin8(6, 0, 255),255,255);
+}
+
+//--- mode5() -----------------------------------------------------------------------------------------------
+// Rainbow Sparkles
+// Settings: 1 = Chance of Sparkles (0-255)
+void mode5(uint8_t thisFan) {
+  fan[thisFan][0]->operator()(0,LedsPerFan-1).fill_rainbow((gSettings[0][1]),19);
+  if (random8() < gSettings[thisFan+1][1]) {
+    (*fan[thisFan][0])[random8(LedsPerFan)] += CRGB::White;
+  }
+}
+
+
+
 //===========================================================================================================
 //=--- End of Mode Functions ---=============================================================================
 //===========================================================================================================
@@ -104,13 +137,13 @@ static modefunarr modefun[NumberOfModes] = {
   mode0,
   mode1,
   mode2,
-  mode3
+  mode3,
+  mode4,
+  mode5
 };
 
 // Serial Handling
 int inByte = 0;
-
-
 
 //==== Arduino setup Function ===============
 void setup() {
@@ -126,18 +159,12 @@ void setup() {
 
 //==== Arduino Main Loop ====================
 void loop() {
-  //fan[0][0]->operator()(0,2) = CRGB::Red; //Poke several LEDs in one fan
-  //leds[4] = CRGB::Green; //Address the full strip directly
-  //fan[0][1]->operator()(0,2) = CRGB::Green; //Poke several LEDs in one fan
-  //(*fan[0][1])[3] = CRGB::Gray; //Address one specific LED in one fan
   breakfast();
   processFans();
- 
   remap();  //***Always run the remap function just before calling show().***
   FastLED.setBrightness(gSettings[0][0]);
   FastLED.show();
   FastLED.delay((1000/FRAMES_PER_SECOND) - 2); //Approximately 2 ms goes into writing to the LEDs (27 us per LED)
-
 }
 
 
