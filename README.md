@@ -3,7 +3,7 @@ Arduino sketch to act as a custom controller for Corsair HD120 RGB Fans
 
 Copyright 2017 Kit Parenteau
 
-Version score: 0.1.0.0
+Version score: 0.1.1.0
 
 The lighting controller that comes standard for HD120 RGB fans left something to be desired.
 This code allows a 5V Arduino AVR to be used as a controller for the fan lighting.
@@ -13,3 +13,9 @@ This code allows a 5V Arduino AVR to be used as a controller for the fan lightin
 This is the initial version of this software. It is -NOT- the same as the video, which uses demo code to control the lights globally. I will hopefully implement some of the video functions as modes. 
 
 Consider this to be an ALPHA version. Some assembly required. Do not taunt code. Comments may cause sweating or blindness.
+
+Changelog
+0.1.1.0 - February 6, 2017
+* ADDED: Two more fan modes
+* ADDED: Local compile size tracking in comments
+* IMPROVED: Cleaned up code and increased comment clarity
