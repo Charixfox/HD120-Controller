@@ -37,8 +37,10 @@ Controls:
 Open Serial connection to Arduino (115200 Baud)
 - For example, use Serial monitor
 - If using serial monitor, use Newline line ending setting
-Send "#,#,#" as Group,Setting,Value, for example,
-0,0,255  -> Sets the global brightness to full blast.
+Send ">#,#,#" as Group,Setting,Value, for example,
+>0,0,255  -> Sets the global brightness to full blast.
+The ">" character is used as a wake header for the controller and will cause it to pause briefly to listen and respond with "Go"
+An accepted command will respond with OK and then the three values it recorded.
 
 Current groups:
 0   -> Global
