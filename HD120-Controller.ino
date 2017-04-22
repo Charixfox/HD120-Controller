@@ -1,26 +1,29 @@
 
 /* Yay Circles of Dooooooom! Gah. Anyway... after remapping, things should address kind of like:
- *          0  11  
- *        1      10
- *      2          9
- *      3          8
- *        4      7
- *          5  6
- *          
- *  Version score 0.1.1
- *  Compiled size: 11,736
- *  
- *  TODO...
- *  - EEPROM storage and loading of settings to persist the settings between system boots.
- *  --- The EEPROM on an Arduino is rated for a minimum of 100,000 write cycles. This means even if somebody changed it 50 times a day every day, 
- *  --- it would last over five years.
- *  - Multi-Fan coordination modes. For example a chaser that traverses fans and is side-aware.
- *  - Develop better control protocol and communication system and possibly a PC program. ... Yeah, right. Halp? Anyone?
- */
+            0  11
+          1      10
+        2          9
+        3          8
+          4      7
+            5  6
+
+    Version score 0.2.0
+    Compiled size: 17,254
+
+    TODO...
+    - EEPROM storage and loading of settings to persist the settings between system boots. -- DONE!
+    --- The EEPROM on an Arduino is rated for a minimum of 100,000 write cycles. This means even if somebody changed it 50 times a day every day,
+    --- it would last over five years.
+    - Multi-Fan coordination modes. For example a chaser that traverses fans and is side-aware.
+    - Develop better control protocol and communication system and possibly a PC program. ... Yeah, right. Halp? Anyone?
+
+    Development Notes:
+    Arduino AVRs couldn't give two giggles about divide by zero. It will not cause an error. It returns -1 or 0 depending on signed or unsigned.
+*/
 
 #define FASTLED_INTERNAL
 #include "FastLED.h"                // The actual LED control code. Library added aseparately.
-#include <EEPROM.h>                 // We do not use EEPROM capability (yet) but hopefully will in the future.
+#include <avr/eeprom.h>             // Default EEPROM library from the IDE
 
 FASTLED_USING_NAMESPACE
 #define DATA_PIN            3       // Physical digital pin on the Arduino
@@ -32,99 +35,377 @@ FASTLED_USING_NAMESPACE
 #define LedsPerFan          12      // 12 for HD120 RGB.
 #define NUM_LEDS            (NumberOfFans * LedsPerFan)
 
+#define SETCOMPAT           1 // Defines the current compatibility level of the EEPROM storage.
+
+// Additional support for LED Strips on Pin 4
+// - Technically we can support more strips, however I recommend against it in the stock setup. Please keep power draw (90mA/LED max) and connector/cable limits in mind
+// - If you don't know what the above means, don't use more than four strips. <.<
+#define STRIP_PIN           4       // Physiucal digital pin for strips
+#define NumberOfStrips      4
+#define LedsPerStrip        10
+#define STRIP_LEDS          (NumberOfStrips * LedsPerStrip)
+
+// EVIL macros. Evil, Evil, Evil
+// #define EM_F                fan[thisFan][0]->operator()(0,LedsPerFan-1)  // Addressing for fan modes that use thisFan to grab the whole fan
+#define EM_F                (*fan[thisFan][0]) // Testing
+
+#define EM_S                (*strip[thisStrip])  // Addressing for strip modes that use thisStrip to grab the whole strip
+// Evil Macros for Fan Sides
+#define EM_FW               (*fan[thisFan][5])
+#define EM_FE               (*fan[thisFan][6])
+// Evil Macros for Fan Quarters
+#define EM_FNW              (*fan[thisFan][1])
+#define EM_FNE              (*fan[thisFan][4])
+#define EM_FSW              (*fan[thisFan][2])
+#define EM_FSE              (*fan[thisFan][3])
+// De-funcing check
+#define EM_RFS1             gSettings[thisFan+1][1]
+
 /* SubSetsPerFan is not actually configurable but explained here anyway.
-// Defining the SubSets is hard-coded so cannot translate between fans or different subsets programmatically
-//------------------------------------------------
-// 0 = Full Fan counter-clockwise
-// 1 = NW CCW
-// 2 = SW CCW
-// 3 = SE CCW
-// 4 = NE CCW
-// 5 = West Side Bottom to Top
-// 6 = East Side Bottom to Top */
+  // Defining the SubSets is hard-coded so cannot translate between fans or different subsets programmatically
+  //------------------------------------------------
+  // 0 = Full Fan counter-clockwise
+  // 1 = NW CCW
+  // 2 = SW CCW
+  // 3 = SE CCW
+  // 4 = NE CCW
+  // 5 = West Side Bottom to Top
+  // 6 = East Side Bottom to Top */
 #define SubSetsPerFan        7
 
 /*---- SettingGroups ---------------------------------------------
-// 0 = Global
-// 1 to NumberOfFans = Per Fan 
-// I could have made 0 though x the fans, but then Global would always be at a different place. Trade either way, so in Fan settings I just x + 1 it */
-#define SettingGroups        (1 + NumberOfFans)
+  // 0 = Global
+  // 1 to NumberOfFans = Per Fan
+  // I could have made 0 though x the fans, but then Global would always be at a different place. Trade either way, so in Fan settings I just x + 1 it
+  // NumberOfFans to NumberOfFans + NumberOfStrips = Per Strip */
+#define SettingGroups        (1 + NumberOfFans + NumberOfStrips)
 
 //---- SettingItems ----------------------------------------------
-// Global  ================\
-// 0   = Brightness
-// 1   = Global frame rotation 0-255 repeating - Approx 60 units per second, so cycles in just over four seconds.
-// 2-7 = Future Use
-// Per Fan ================\
+// -- Global  ================\
+// 0   = Remembered Global Brightness
+// 1   = Global Mode
+// 2-5 = Global Mode Data
+// 6   = Sync BPM
+// 7   = BPM
+// -- Per Fan or Strip =======\
 // 0   = Mode
 // 1-7 = Mode-dependant data
-#define SettingItems         8
+// ---> Notes
+// - Regardless of the number of setting items, the initial setup will set the last two to be 6.
+//    This is useful for BPM rates
+#define SettingItems        8
 
 // The actual LED Arrays which are built as Sets with Arrays
-CRGBArray<NUM_LEDS> leds;    // Operate on this array as if it had the correct layout.
-CRGBArray<NUM_LEDS> actual;  // Display this array after mapping "leds" to "actual". In most code, ignore this.
+CRGBArray<NUM_LEDS>   leds;    // Operate on this array as if it had the correct layout.
+CRGBArray<NUM_LEDS>   actual;  // Display this array after mapping "leds" to "actual". In most code, ignore this.
+CRGBArray<STRIP_LEDS> stripLeds;  // Strips in order
 
-CRGBSet *fan[NumberOfFans][SubSetsPerFan];  //Fan Subset Array
-uint8_t gSettings[SettingGroups][SettingItems]; //Settings Array
+CRGBSet *fan[NumberOfFans][SubSetsPerFan];      // Fan Subset Array
+CRGBSet *strip[NumberOfStrips];                 // Strips Array
+uint8_t gSettings[SettingGroups][SettingItems]; // Settings Array
 
-#define NumberOfModes       6 //Raise this as modes are created. Used to sanity-check settings.
+#define NumberOfModes       10 //Raise this as modes are created. Used to sanity-check settings.
+#define NumberOfStripModes  5 //Raise this as modes are created. Used to sanity-check settings.
+#define NumberOfGlobalModes 2 //Raise this as modes are created. Used to sanity-check settings.
 //===========================================================================================================
 // Mode Functions
 //===========================================================================================================
-//In order for the pointers to work, all modes need to be defined first. 
-// fan[0][0]->operator()(0,2) = CRGB::Red; //Poke several LEDs in one fan
+//In order for the pointers to work, all modes need to be defined first.
+// fan[0][0]->operator()(0,2) = CRGB::Red; //Poke several LEDs in one fan. This CAN be used but is substantially-larger machine code.
+// (*fan[0][1])(2,3) = CRGB::Gray; //Poke several LEDs in one fan. Smaller Code.
 // leds[4] = CRGB::Green; //Address the full strip directly
 // (*fan[0][1])[3] = CRGB::Gray; //Address one specific LED in one fan
+// fan[FanNumber][Segment] then things
 
 
-//--- mode0() -----------------------------------------------------------------------------------------------
-// Angry Myia Mode 
-// A simple 10 second pulse between teal and red, crossing through blue and purple.
-// Settings: None
-void mode0(uint8_t thisFan) { 
-  fan[thisFan][0]->operator()(0,LedsPerFan-1) = CHSV(beatsin8(6, 128, 255),255,255);
+//-- mode0() -----------------------------------------------------------------------------------------------
+// Hue Shift
+// A simple pulse between teal and red, crossing through blue and purple.
+// Settings: 1 = Starting Hue; 2 = Ending Hue; 3 = Hue Offset; 5 = Phase Offset; 7 = Rate in BPM
+void mode0(uint8_t thisFan) {
+  EM_F = CHSV(beatsin8(rFS(thisFan, 7), rFS(thisFan, 1), rFS(thisFan, 2), 0, rFS(thisFan, 5)) + rFS(thisFan, 3), 255, 255);
 }
 
-//--- mode1() -----------------------------------------------------------------------------------------------
-// Single Color Fan
-// Settings: 1 = Hue
+
+//-- mode1() -----------------------------------------------------------------------------------------------
+// Single Spinner
+// Settings: 1 = Hue (Overridden by 3); 2 = 0 -> Clockwise, 1+ -> Counterclockwise;
+//           3 = Rainbowmode? 0 -> No, 1+ -> Rainbow;
+//           4 = BPM of Rainbow shift; 6 = Fade Speed (good to match BPM); 7 = Spin Speed BPM
 void mode1(uint8_t thisFan) {
-  fan[thisFan][0]->operator()(0,LedsPerFan-1) = CHSV(gSettings[thisFan+1][1],255,255);
+  uint8_t theHue;
+  uint8_t bpm = rFS(thisFan, 7);
+
+  switch (rFS(thisFan, 3)) {
+    case 0 :
+      theHue = rFS(thisFan, 1);
+      break;
+    default :
+      theHue = beat8(rFS(thisFan, 4));
+  }
+  EM_F.fadeToBlackBy(rFS(thisFan, 6));
+  switch (rFS(thisFan, 2)) {
+    case 0 :
+      (*fan[thisFan][0])[LedsPerFan - 1 - scale8(bpm, LedsPerFan - 1)] = CHSV(theHue, 255, 255);
+      break;
+    default :
+      (*fan[thisFan][0])[scale8(beat8(bpm), LedsPerFan - 1)] = CHSV(theHue, 255, 255);
+  }
 }
 
-//--- mode2() -----------------------------------------------------------------------------------------------
-// Single color sine wave pulse
-// Settings: 1 = Hue, 2 = BPM (60 / BPM = Time for fade cycle))
+
+//-- mode2() -----------------------------------------------------------------------------------------------
+// Rainbow
+// Settings: 1 = Chance of Sparkles (0-255); 2 = Hue Steps per LED -- 21 shows a full rainbow; 7 = Speed of Rotation
 void mode2(uint8_t thisFan) {
-  gSettings[thisFan+1][2] = (gSettings[thisFan+1][2] < 1) ? 6 : gSettings[thisFan+1][2]; // 0 BPM is x/0 and is bad, mmkay? But we will default to a decent speed.
-  fan[thisFan][0]->operator()(0,LedsPerFan-1) = CHSV(gSettings[thisFan+1][1],255,beatsin8(gSettings[thisFan+1][2],0,255));
-}
-
-//--- mode3() -----------------------------------------------------------------------------------------------
-// Rotating full rainbow
-// Settings: None
-void mode3(uint8_t thisFan) {
-  fan[thisFan][0]->operator()(0,LedsPerFan-1).fill_rainbow((gSettings[0][1]),19);
-}
-
-//--- mode4() -----------------------------------------------------------------------------------------------
-// Over the rainbow Mode 
-// A simple 10 second fade through all the colors and back.
-// Settings: None
-void mode4(uint8_t thisFan) { 
-  fan[thisFan][0]->operator()(0,LedsPerFan-1) = CHSV(beatsin8(6, 0, 255),255,255);
-}
-
-//--- mode5() -----------------------------------------------------------------------------------------------
-// Rainbow Sparkles
-// Settings: 1 = Chance of Sparkles (0-255)
-void mode5(uint8_t thisFan) {
-  fan[thisFan][0]->operator()(0,LedsPerFan-1).fill_rainbow((gSettings[0][1]),19);
-  if (random8() < gSettings[thisFan+1][1]) {
+  EM_F.fill_rainbow(beat8(rFS(thisFan, 7)), rFS(thisFan, 2)); // 21 is the steps between hues between LEDs which aligns the rainbow
+  if (random8() < rFS(thisFan, 1)) {
     (*fan[thisFan][0])[random8(LedsPerFan)] += CRGB::White;
   }
 }
 
+//-- mode3() -----------------------------------------------------------------------------------------------
+// Four-point spinner
+// Settings: 1 = Hue (Overridden by 3); 2 = 0 -> Clockwise, 1+ -> Counterclockwise;
+//           3 = Rainbowmode? 0 -> No, 1+ -> Rainbow;
+//           4 = BPM of Rainbow shift; 5 = Per Blade Hue Shift; 6 = Fade Speed (good to match BPM);
+//           7 = Spin Speed BPM
+void mode3(uint8_t thisFan) {
+  uint8_t theHue, rbm, shift;
+  rbm = rFS(thisFan, 3);
+  shift = rFS(thisFan, 5);
+  uint8_t bpm = rFS(thisFan, 7);
+
+  switch (rbm) {
+    case 0 :
+      theHue = rFS(thisFan, 1);
+      break;
+    default :
+      theHue = beat8(rFS(thisFan, 4));
+  }
+  EM_F.fadeToBlackBy(rFS(thisFan, 6) * 2);
+  if (rFS(thisFan, 2) > 0) {
+    (*fan[thisFan][0])[scale8(beat8(bpm), LedsPerFan - 1) % LedsPerFan] = CHSV(theHue, 255, 255);
+    (*fan[thisFan][0])[(scale8(beat8(bpm), LedsPerFan - 1) + (LedsPerFan / 4)) % LedsPerFan] = CHSV(theHue + shift, 255, 255);
+    (*fan[thisFan][0])[(scale8(beat8(bpm), LedsPerFan - 1) + (2 * LedsPerFan / 4)) % LedsPerFan] = CHSV(theHue + (shift * 2), 255, 255);
+    (*fan[thisFan][0])[(scale8(beat8(bpm), LedsPerFan - 1) + (3 * LedsPerFan / 4)) % LedsPerFan] = CHSV(theHue + (shift * 3), 255, 255);
+  }
+  else {
+    (*fan[thisFan][0])[LedsPerFan - 1 - scale8(beat8(bpm), LedsPerFan - 1) % LedsPerFan] = CHSV(theHue, 255, 255);
+    (*fan[thisFan][0])[LedsPerFan - 1 - (scale8(beat8(bpm), LedsPerFan - 1) + (LedsPerFan / 4)) % LedsPerFan] = CHSV(theHue + shift, 255, 255);
+    (*fan[thisFan][0])[LedsPerFan - 1 - (scale8(beat8(bpm), LedsPerFan - 1) + (2 * LedsPerFan / 4)) % LedsPerFan] = CHSV(theHue + (shift * 2), 255, 255);
+    (*fan[thisFan][0])[LedsPerFan - 1 - (scale8(beat8(bpm), LedsPerFan - 1) + (3 * LedsPerFan / 4)) % LedsPerFan] = CHSV(theHue + (shift * 3), 255, 255);
+  }
+}
+
+//-- mode4() -----------------------------------------------------------------------------------------------
+// Double-scan
+// Settings: 1 = Hue (Overridden by 3); 3 = Rainbowmode? 0 -> No, 1 -> Rainbow
+//           4 = BPM of Rainbow shift; 5 = Per Blade Hue Shift; 6 = Fade Speed (good to match BPM);
+//           7 = Spin Speed BPM
+void mode4(uint8_t thisFan) {
+  uint8_t theHue, rbm, shift;
+  rbm = rFS(thisFan, 3);
+  shift = rFS(thisFan, 5);
+  uint8_t bpm = rFS(thisFan, 7);
+
+  switch (rbm) {
+    case 0 :
+      theHue = rFS(thisFan, 1);
+      break;
+    default :
+      theHue = beat8(rFS(thisFan, 4));
+  }
+  EM_F.fadeToBlackBy(rFS(thisFan, 6));
+  (*fan[thisFan][0])[(scale8(beat8(bpm), LedsPerFan - 1) + (LedsPerFan / 4)) % LedsPerFan] = CHSV(theHue, 255, 255);
+  (*fan[thisFan][0])[(LedsPerFan - 1 - scale8(beat8(bpm), LedsPerFan - 1) + (LedsPerFan / 4)) % LedsPerFan] = CHSV(theHue + shift, 255, 255);
+}
+
+//-- mode5() -----------------------------------------------------------------------------------------------
+// Flap
+// Settings: 1 = Hue (Overridden by 3); 3 = Rainbowmode? 0 -> No, 1+ -> Rainbow;
+//           4 = BPM of Rainbow shift; 5 = Per Blade Hue Shift; 6 = Fade Speed (good to match BPM);
+//           7 = Spin Speed BPM
+void mode5(uint8_t thisFan) {
+  uint8_t theHue, rbm, shift;
+  rbm = rFS(thisFan, 3);
+  shift = rFS(thisFan, 5);
+  uint8_t bpm = rFS(thisFan, 7);
+
+  switch (rbm) {
+    case 0 :
+      theHue = rFS(thisFan, 1);
+      break;
+    default :
+      theHue = beat8(rFS(thisFan, 4));
+  }
+  EM_F.fadeToBlackBy(rFS(thisFan, 6));
+  (*fan[thisFan][0])[scale8(beat8(bpm), LedsPerFan - 1)] = CHSV(theHue, 255, 255);
+  (*fan[thisFan][0])[LedsPerFan - 1 - scale8(beat8(bpm), LedsPerFan - 1)] = CHSV(theHue + shift, 255, 255);
+}
+
+//-- mode6() -----------------------------------------------------------------------------------------------
+// Double Spinner
+// Settings: 1 = Hue (Overridden by 3); 2 = 0 -> Clockwise, 1+ -> Counterclockwise;
+//           3 = Rainbowmode? 0 -> No, 1+ -> Rainbow;
+//           4 = BPM of Rainbow shift; 5 = Per Blade Hue Shift; 6 = Fade Speed (good to match BPM);
+//           7 = Spin Speed BPM
+void mode6(uint8_t thisFan) {
+  uint8_t theHue, rbm, shift;
+  rbm = rFS(thisFan, 3);
+  shift = rFS(thisFan, 5);
+  uint8_t bpm = rFS(thisFan, 7);
+
+  switch (rbm) {
+    case 0 :
+      theHue = rFS(thisFan, 1);
+      break;
+    default :
+      theHue = beat8(rFS(thisFan, 4));
+  }
+  EM_F.fadeToBlackBy(rFS(thisFan, 6));
+  if (rFS(thisFan, 2) > 0) {
+    (*fan[thisFan][0])[scale8(beat8(bpm), LedsPerFan - 1) % LedsPerFan] = CHSV(theHue, 255, 255);
+    (*fan[thisFan][0])[(scale8(beat8(bpm), LedsPerFan - 1) + (LedsPerFan / 2)) % LedsPerFan] = CHSV(theHue, 255, 255);
+  }
+  else {
+    (*fan[thisFan][0])[LedsPerFan - 1 - scale8(beat8(bpm), LedsPerFan - 1) % LedsPerFan] = CHSV(theHue, 255, 255);
+    (*fan[thisFan][0])[LedsPerFan - 1 - (scale8(beat8(bpm), LedsPerFan - 1) + (LedsPerFan / 2)) % LedsPerFan] = CHSV(theHue, 255, 255);
+  }
+}
+
+//-- mode7() -----------------------------------------------------------------------------------------------
+//  BPM from 100-line demo
+// Settings: 7 = BPM; 1 = Hue multiplier; 2 = Beat multiplier
+void mode7(uint8_t thisFan) {
+  CRGBPalette16 palette = PartyColors_p;
+  uint8_t beat = beatsin8( rFS(thisFan, 7), 64, 255);
+  for ( int i = 0; i < LedsPerFan; i++) {
+    (*fan[thisFan][0])[i] = ColorFromPalette(palette, rGS(1) + (i * (rFS(thisFan, 1))), beat - rGS(1) + (i * rFS(thisFan, 2)));
+  }
+}
+
+//-- mode8() -----------------------------------------------------------------------------------------------
+// Split Sides
+// Settings: 7 = BPM of pulse; 1 = W Side hue; 2 = E Side hue; 4 = Fan Phase Offset; 5 = Per side phase offset;
+//           6 = Pulse? 0 -> No, 1 -> Sin, 2 -> Sawtooth In, 3 -> Sawtooth Out, 4+ -> Triangle
+void mode8(uint8_t thisFan) {
+  uint8_t beat = beat8(rFS(thisFan, 7));
+  switch (rFS(thisFan, 6)) {
+    case 0 :
+      EM_FE = CHSV(rFS(thisFan, 2), 255, 255);
+      EM_FW = CHSV(rFS(thisFan, 1), 255, 255);
+      break;
+    case 1 :
+      EM_FW = CHSV(rFS(thisFan, 1), 255, beatsin8(rFS(thisFan, 7), 0, 255, 0, rFS(thisFan, 4)));
+      EM_FE = CHSV(rFS(thisFan, 2), 255, beatsin8(rFS(thisFan, 7), 0, 255, 0, rFS(thisFan, 5) + rFS(thisFan, 4)));
+      break;
+    case 2 :
+      EM_FW = CHSV(rFS(thisFan, 1), 255, beat + rFS(thisFan, 4));
+      EM_FE = CHSV(rFS(thisFan, 2), 255, beat + rFS(thisFan, 5) + rFS(thisFan, 4));
+      break;
+    case 3 :
+      EM_FW = CHSV(rFS(thisFan, 1), 255, 255 - beat + rFS(thisFan, 4));
+      EM_FE = CHSV(rFS(thisFan, 2), 255, 255 - beat + rFS(thisFan, 5) + rFS(thisFan, 4));
+      break;
+    default :
+      EM_FW = CHSV(rFS(thisFan, 1), 255, triwave8(beat) + rFS(thisFan, 4));
+      EM_FE = CHSV(rFS(thisFan, 2), 255, triwave8(beat) + rFS(thisFan, 5) + rFS(thisFan, 4));
+  }
+}
+
+// Code notes:
+// On West side, the iterators and fill functions do not honor the reverse (bottom to top) order
+// (*fan[thisFan][5]).fill_rainbow(0,42) -> This will fill top to bottom with a rainbow.
+// (*fan[thisFan][5]) =  -> This will address the whole segment properly.
+
+
+//-- mode9() -----------------------------------------------------------------------------------------------
+// Split Quarters
+// Settings: 1 = NW Side hue; 2 = NE Side hue; 3 = SE Side hue; 4 = SW Side hue;
+//           5 = Per side phase offset;
+//           6 = Pulse? 0 -> No, 1+ -> Yes;
+//           7 = BPM of pulse;
+void mode9(uint8_t thisFan) {
+  switch (rFS(thisFan, 6)) {
+    case 0 :
+      EM_FNW = CHSV(rFS(thisFan, 1), 255, 255);
+      EM_FNE = CHSV(rFS(thisFan, 2), 255, 255);
+      EM_FSE = CHSV(rFS(thisFan, 3), 255, 255);
+      EM_FSW = CHSV(rFS(thisFan, 4), 255, 255);
+      break;
+    default :
+      EM_FNW = CHSV(rFS(thisFan, 1), 255, beatsin8(rFS(thisFan, 7)));
+      EM_FNE = CHSV(rFS(thisFan, 2), 255, beatsin8(rFS(thisFan, 7), 0, 255, 0, rFS(thisFan, 5)));
+      EM_FSE = CHSV(rFS(thisFan, 3), 255, beatsin8(rFS(thisFan, 7), 0, 255, 0, rFS(thisFan, 5) * 2));
+      EM_FSW = CHSV(rFS(thisFan, 4), 255, beatsin8(rFS(thisFan, 7), 0, 255, 0, rFS(thisFan, 5) * 3));
+
+  }
+}
+
+
+
+//===========================================================================================================
+//=--- Strip Mode Functions ---==============================================================================
+//===========================================================================================================
+
+//--- smode0() -----------------------------------------------------------------------------------------------
+// Angry Myia Mode
+// A simple pulse between teal and red, crossing through blue and purple.
+// Settings: 7 = Rate in BPM  -- Default 6 (10 seconds)
+void smode0(uint8_t thisStrip) {
+  EM_S = CHSV(beatsin8(rSS(thisStrip, 7), 128, 255), 255, 255);
+}
+
+//--- smode1() ----------------------------------------------------------------------------------------------
+// Single Color Strip
+// Settings: 1 = Hue
+void smode1(uint8_t thisStrip) {
+  EM_S = CHSV(rSS(thisStrip, 1), 255, 255);
+}
+
+//--- smode2() -----------------------------------------------------------------------------------------------
+// Single color pulse
+// Settings: 1 = Hue, 7 = BPM (60 / BPM = Time for fade cycle))
+void smode2(uint8_t thisStrip) {
+  EM_S = CHSV(rSS(thisStrip, 1), 255, beatsin8(rSS(thisStrip, 7), 0, 255));
+}
+
+//--- smode3() -----------------------------------------------------------------------------------------------
+// Running full rainbow
+// Settings: 7 = Speed in BPM
+void smode3(uint8_t thisStrip) {
+  EM_S.fill_rainbow(beat8(rSS(thisStrip, 7)), 25); // 25 is the steps between hues between LEDs which aligns the rainbow
+}
+
+//--- smode4() -----------------------------------------------------------------------------------------------
+// Prototype Testing - Currently BPM from 100-line demo
+// Settings: 7 = BPM; 1 = Hue multiplier; 2 = Beat multiplier
+void smode4(uint8_t thisStrip) {
+  CRGBPalette16 palette = PartyColors_p;
+  uint8_t beat = beatsin8( rSS(thisStrip, 7), 64, 255);
+  for ( int i = 0; i < LedsPerStrip; i++) {
+    (*strip[thisStrip])[i] = ColorFromPalette(palette, rGS(1) + (i * rSS(thisStrip, 1)), beat - rGS(1) + (i * rSS(thisStrip, 2)));
+  }
+}
+
+
+//===========================================================================================================
+//=--- Global Mode Functions ---=============================================================================
+//===========================================================================================================
+
+//--- gmode0() -----------------------------------------------------------------------------------------------
+// Absolutely nothing. No global override.
+void gmode0() {
+  return;
+}
+
+//--- gmode1() -----------------------------------------------------------------------------------------------
+// Pulse brightness between 0 and max brightness setting
+// Settings: 7 = Speed in BPM
+void gmode1() {
+  FastLED.setBrightness(beatsin8(rGS(7), 0, rGS(0)));
+}
 
 
 //===========================================================================================================
@@ -139,39 +420,66 @@ static modefunarr modefun[NumberOfModes] = {
   mode2,
   mode3,
   mode4,
-  mode5
+  mode5,
+  mode6,
+  mode7,
+  mode8,
+  mode9
 };
+
+static modefunarr smodefun[NumberOfStripModes] = {
+  smode0,
+  smode1,
+  smode2,
+  smode3,
+  smode4
+};
+
+typedef void (*gmodefunarr)(); // typedef without parameters for global modes
+static gmodefunarr gmodefun[NumberOfGlobalModes] = {
+  gmode0,
+  gmode1
+};
+
 
 // Serial Handling
 int inByte = 0;
 
+// Save handling
+uint8_t EEMEM eeHeader[3], eeSettings[(SettingGroups * SettingItems)]; // Stores the data in EEPROM when saved
+uint8_t eeCompat[3]; // For checking the EEPROM header
+
 //==== Arduino setup Function ===============
 void setup() {
   delay(3000); // 3 second delay for recovery -> This is IMPORTANT
-  FastLED.addLeds<LED_TYPE,DATA_PIN,COLOR_ORDER>(actual, NUM_LEDS); //.setCorrection(TypicalLEDStrip); // The color correction makes things "Video correct" but we want pretty, not video.
+  FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(actual, NUM_LEDS);
+  FastLED.addLeds<LED_TYPE, STRIP_PIN, COLOR_ORDER>(stripLeds, STRIP_LEDS);
   /* Keep this for legacy reference until defineSets() is confirmed working
-  fan[0][0] = new CRGBSet( leds(0, 11) );
-  fan[0][1] = new CRGBSet( leds(6, 11) );*/
+    fan[0][0] = new CRGBSet( leds(0, 11) );
+    fan[0][1] = new CRGBSet( leds(6, 11) );*/
   defineSets();
   initSettings();
   Serial.begin(115200);
+  checkStorage();
 }
 
 //==== Arduino Main Loop ====================
 void loop() {
+  FastLED.setBrightness(rGS(0)); // We'll do this first since Global may override it.
   breakfast();
   processFans();
-  remap();  //***Always run the remap function just before calling show().***
-  FastLED.setBrightness(gSettings[0][0]);
+  processStrips();
+  processGlobal();
+  remap();                       //***Always run the remap function just before calling show().***
   FastLED.show();
-  FastLED.delay((1000/FRAMES_PER_SECOND) - 2); //Approximately 2 ms goes into writing to the LEDs (27 us per LED)
+  FastLED.delay((1000 / FRAMES_PER_SECOND) - 3); //Approximately 3 ms goes into writing to the LEDs (27 us per LED)
 }
 
 
 
 
 
-//---- defineSets() ----------------------------------
+//---- defineSets() --------------------------------
 // Set up Fans and other sets
 void defineSets() {
   //Since the subsets are pretty much hard-coded, some will need to be defined by hand.
@@ -188,86 +496,193 @@ void defineSets() {
   for (uint8_t i = 0; i < NumberOfFans; i++) {
     fan[i][0] = new CRGBSet( leds((i * LedsPerFan), (((i + 1) * LedsPerFan) - 1)));
   }
+  // Set up full strips
+  for (uint8_t i = 0; i < NumberOfStrips; i++) {
+    strip[i] = new CRGBSet( stripLeds((i * LedsPerStrip), (((i + 1) * LedsPerStrip) - 1)));
+  }
   // Set up quadrants
   for (uint8_t i = 0; i < NumberOfFans; i++) {
     for (uint8_t q = 1; q < 5; q++) {
-      fan[i][q] = new CRGBSet( leds((i * LedsPerFan) + (q * 3), ((i * LedsPerFan) + ((q + 1) * 3) - 1)));
+      fan[i][q] = new CRGBSet( leds((i * LedsPerFan) + ((q - 1) * 3), ((i * LedsPerFan) + (q * 3) - 1)));
     }
   }
   // Set up sides
   for (uint8_t i = 0; i < NumberOfFans; i++) {
     fan[i][5] = new CRGBSet( leds((i * LedsPerFan) + 5, (i * LedsPerFan)));
-    if (!(fan[i][6] = new CRGBSet( leds((i * LedsPerFan) + 6, (((i + 1) * LedsPerFan) - 1))) ) ) { 
-      actual(0,3) = CRGB::Red; // This happens if we ran out of memory.
-      FastLED.show();
-      exit(1);
-    }
+    fan[i][6] = new CRGBSet( leds((i * LedsPerFan) + 6, (((i + 1) * LedsPerFan) - 1)));
   }
 }
 
 //---- initSettings() --------------------------------
-// For now just a basic set of things. In the future, 
-// possibly check EEPROM. This goes into gSettings.
+// Basic settings if there is nothing in EEPROM
 void initSettings() {
   for (int i = 0; i < SettingGroups; i++) {
     for (int q = 0; q < SettingItems; q++) {
       gSettings[i][q] = 0;
     }
+    gSettings[i][SettingItems - 1] = 6; //Last setting in a group defaults to 6 for BPM ease
   }
   gSettings[0][0] = BRIGHTNESS; //Set the initial brightness
 }
 
 
 //---- remap()----------------------------------------
-// Function to remap "leds" array to "actual" array - 
+// Function to remap "leds" array to "actual" array -
 // Cleaned up and shrunk
 void remap() {
-  for (uint8_t i=0; i < NUM_LEDS; i++) {
+  for (uint8_t i = 0; i < NUM_LEDS; i++) {
     if ( (i % LedsPerFan == 0) || (i % LedsPerFan == 1) ) {
       actual[i] = leds[(floor(i / LedsPerFan) * LedsPerFan) + 10 + (i % 12)];
     } else {
-      actual[i] = leds[i-2];
+      actual[i] = leds[i - 2];
     }
   }
 }
 
 //---- processFans() ---------------------------------
-// Primary container to step through the fans and 
+// Primary container to step through the fans and
 // call the mode function for each one
 void processFans() {
-  gSettings[0][1]++; //Roll the frame counter up
-  for (uint8_t i = 0; i < NumberOfFans; i++) { // Step through each fan
-    if (gSettings[i+1][0] >= NumberOfModes) { gSettings[i+1][0] = 0; } // Sanity check.
-    modefun[gSettings[i+1][0]](i);
+  for (uint8_t i = 0; i < NumberOfFans; i++) { // Step through each fan 0 through N-1
+    if (rFS(i, 0) >= NumberOfModes) {
+      // gSettings[i + 1][0] = 0;  // Sanity check.
+      wFS(i, 0, 0);
+    }
+    modefun[rFS(i, 0)](i);
   }
 }
 
-//---- breakfast() -----------------------------------
-// Handle the serial data. Currently Human-readable
-void breakfast() {
-  if (Serial.available() < 1) { return; } // We have nothing to do
-  //Got to here? We have serial. Let's Do A Thing With It. 
-  if (!(Serial.read() == 62)) {
-    // Not a valid header
-    serialDump(); //Clear everything else - Yes, constant serial flood will halt all lighting
-    Serial.println("No");
-    return;
+//---- processStrips() ---------------------------------
+// Primary container to step through the strips and
+// call the mode function for each one
+void processStrips() {
+  for (uint8_t i = 0; i < NumberOfStrips; i++) { // Step through each strip 0 through N-1
+    if (rSS(i, 0) >= NumberOfStripModes) {
+      wFS(i, 0, 0); // Sanity check.
+    }
+    smodefun[rSS(i, 0)](i);
   }
-  Serial.println("Go");
-  int rg = Serial.parseInt();
-  int ri = Serial.parseInt();
-  int rv = Serial.parseInt();
-  serialDump();
-  uint8_t ig = constrain(rg,0,(SettingGroups - 1));
-  uint8_t ii = constrain(ri,0,(SettingItems - 1));
-  uint8_t iv = constrain(rv,0,255);
-  Serial.print("OK ");
-  Serial.print(ig, DEC);
-  Serial.print(" ");
-  Serial.print(ii, DEC);
-  Serial.print(" ");
-  Serial.println(iv, DEC);
-  gSettings[ig][ii] = iv;
+}
+
+//---- processGlobal() ---------------------------------
+// Primary container to call the mode function for
+// the whole thing
+void processGlobal() {
+  if (rGS(1) >= NumberOfGlobalModes) {
+    wGS(1, 0); // Sanity check.
+  }
+  gmodefun[rGS(1)]();
+}
+
+
+
+//---- rFS(fan, setting) -----------------------------
+// Read Fan Setting shorthand
+// 0 through N-1 translated to setting slot number
+uint8_t rFS(uint8_t i, uint8_t setting) {
+  return gSettings[i + 1][setting];
+}
+
+//---- rSS(strip, setting) -----------------------------
+// Read Strip Setting shorthand
+// 0 through N-1 translated to setting slot number
+uint8_t rSS(uint8_t i, uint8_t setting) {
+  return gSettings[i + NumberOfFans + 1][setting];
+}
+
+//---- rGS(strip, setting) -----------------------------
+// Read Global Setting shorthand
+uint8_t rGS(uint8_t setting) {
+  return gSettings[0][setting];
+}
+
+//---- wFS(fan, setting) ------------------------------
+// Write Fan Setting shorthand
+// 0 through N-1 translated to setting slot number
+uint8_t wFS(uint8_t i, uint8_t setting, uint8_t value) {
+  // i = (i > NumberOfFans) ? 1 : i + 1;
+  gSettings[i + 1][setting] = value;
+}
+
+//---- wSS(strip, setting) -----------------------------
+// Write Strip Setting shorthand
+// 0 through N-1 translated to setting slot number
+uint8_t wSS(uint8_t i, uint8_t setting, uint8_t value) {
+  // i = (i > NumberOfStrips) ? NumberOfFans + 1 : i + NumberOfFans + 1; // Strip setting groups are stored after fan setting groups
+  gSettings[i + NumberOfFans + 1][setting] = value;
+}
+
+//---- wGS(strip, setting) ----------------------------
+// Write Global Setting shorthand
+uint8_t wGS(uint8_t setting, uint8_t value) {
+  gSettings[0][setting] = value;
+}
+
+
+//---- breakfast() ------------------------------------
+// Consume the serial. Currently Human-readable
+void breakfast() {
+  if (rGS(6) > 0) {
+    static uint8_t beatCheck = 0;
+    uint8_t currentBeat = beat8(rGS(6));
+    if (currentBeat > beatCheck) {
+      beatCheck = currentBeat;
+      return;
+    }
+    beatCheck = currentBeat;
+  }
+  while (Serial.available()) {
+    //return;  // We have nothing to do
+    //}
+    //Got to here? We have serial. Let's Do A Thing With It.
+    inByte = Serial.read();
+    /*if (!(inByte == 62)) {
+      // Not a valid header
+      return;
+      }*/
+    switch (inByte) {
+      case 62 :
+        {
+          uint8_t rg = Serial.parseInt(); // Group
+          uint8_t ri = Serial.parseInt(); // Index
+          uint8_t iv = Serial.parseInt(); // Value
+          // serialDump(); //-- Testing the idea of multiple commands in one send
+          uint8_t ig = constrain(rg, 0, (SettingGroups - 1));
+          uint8_t ii = constrain(ri, 0, (SettingItems - 1));
+          Serial.print("OK ");
+          Serial.print(ig);
+          Serial.print(" ");
+          Serial.print(ii);
+          Serial.print(" ");
+          Serial.println(iv);
+          gSettings[ig][ii] = iv;
+        }
+        break;
+      case 63 : // ? (Question mark)
+        for (int i = 0; i < SettingGroups; i++) {
+          Serial.print(i);
+          Serial.print(" ");
+          for (int q = 0; q < SettingItems; q++) {
+            Serial.print(q);
+            Serial.print(" = ");
+            Serial.print(gSettings[i][q]) ;
+            Serial.print(" , ");
+          }
+          Serial.println(";");
+        }
+        break;
+      case 33 : // ! (Exclaimation point)
+        saveSettings();
+        Serial.println("Saved");
+        break;
+      case 36 : // $ (Dollar sign)
+        loadSettings();
+        Serial.println("Loaded");
+        break;
+      default :
+        return;
+    }
+  }
 }
 
 //---- serialDump() -----------------------------------
@@ -278,3 +693,34 @@ void serialDump() {
   }
 }
 
+//---- checkStorage() ---------------------------------
+// Check the EEPROM storage for usability, then initialize it if necessary, and load if already initialized
+void checkStorage() {
+  // if (EEPROM.length() < ((SettingGroups * SettingItems) + 3)) { return; } //There is not enough EEPROM for us to use
+  eeprom_read_block(eeCompat, eeHeader, 3); //Grab the header and check it.
+  if (!(eeCompat[0] == SETCOMPAT && eeCompat[1] == SettingGroups && eeCompat[2] == SettingItems)) { //We don't have a valid header.
+    eeCompat[0] = SETCOMPAT;
+    eeCompat[1] = SettingGroups;
+    eeCompat[2] = SettingItems;
+    eeprom_write_block(eeCompat, eeHeader, 3);
+    saveSettings();
+    return;
+  }
+  loadSettings();
+}
+
+//---- saveSettings() -------------------------------
+// Save the settings to EEPROM
+// There SHOULD be no way to trigger this without a valid storage compatible header
+// We'll see if I'm footshot for this.
+void saveSettings() {
+  eeprom_write_block(gSettings, eeSettings, SettingGroups * SettingItems);
+}
+
+//---- loadSettings() -------------------------------
+// Load the settings from EEPROM
+// There SHOULD be no way to trigger this without a valid storage compatible header
+// and valid data. We'll see if I'm footshot for this.
+void loadSettings() {
+  eeprom_read_block(gSettings, eeSettings, SettingGroups * SettingItems);
+}
