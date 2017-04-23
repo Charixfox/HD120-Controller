@@ -3,14 +3,14 @@ Arduino sketch to act as a custom controller for Corsair HD120 RGB Fans
 
 Copyright 2017 Kit Parenteau
 
-Version score: 0.1.1.0
+Version score: 0.2.0.0
 
 The lighting controller that comes standard for HD120 RGB fans left something to be desired.
 This code allows a 5V Arduino AVR to be used as a controller for the fan lighting.
 * An Arduino Micro or Micro Pro is recommended due to its physical size and hardware capabilities
 * FastLED Library 3.1 or newer, and Arduino.cc IDE 1.8.1 or newer are required.
 
-This is the initial version of this software. It is -NOT- the same as the video, which uses demo code to control the lights globally. I will hopefully implement some of the video functions as modes. 
+This is the initial version of this software. It is -NOT- the same as the prototype video, which uses demo code to control the lights globally. I will hopefully implement some of the video functions as modes. Version 0.2.0.0 was used to make the fancier video. 
 
 Consider this to be an ALPHA version. Some assembly required. Do not taunt code. Comments may cause sweating or blindness.
 
@@ -19,28 +19,23 @@ User Features
 * Control individual fans.
 * Global Brightness Control
 * Multiple Modes (And more to come)
+* Timing Sync Mode
 
 Coder Features
-* Remapping of the fans to putthe first LED in the proper place
+* Remapping of the fans to put the first LED in the proper place
 * Mapping per sides of fans
 * Mapping per quadrant of fan
 * Uses FastLED - 8-bit mapped stuff makes things easy
 
 
-Changelog
-0.1.1.0 - February 6, 2017
-* ADDED: Two more fan modes
-* ADDED: Local compile size tracking in comments
-* IMPROVED: Cleaned up code and increased comment clarity
-
+-- NOT UP TO DATE FOR 0.2.0.0 - Refer to code comments until this is updated.
 Controls:
 Open Serial connection to Arduino (115200 Baud)
-- For example, use Serial monitor
+- For example, use Serial monitor or command line redirect to serial port
 - If using serial monitor, use Newline line ending setting
 Send ">#,#,#" as Group,Setting,Value, for example,
 >0,0,255  -> Sets the global brightness to full blast.
-The ">" character is used as a wake header for the controller and will cause it to pause briefly to listen and respond with "Go"
-An accepted command will respond with OK and then the three values it recorded.
+The ">" character is used as a wake header for the controller and will cause it to pause briefly to listen.
 
 Current groups:
 0   -> Global
@@ -96,3 +91,22 @@ https://raw.githubusercontent.com/FastLED/FastLED/gh-pages/images/HSV-rainbow-wi
 192 -> Purple
 224 -> Pink
 255 -> Red
+
+
+Changelog
+0.2.0.0 - April 23, 2017
+* ADDED: EEPROM Saving and Loading
+* ADDED: Beat Sync Control
+* * Global Sync Mode
+* * Staging Settings
+* ADDED: Numerous new fan modes
+* ADDED: Strip control on separate data pin
+* ADDED: Global modes
+* MODIFIED: Consolidated some fan modes down into one. For example, "single hue color" is the same as two sides with both sides having the same color.
+* ADDED: Ability to query current settings. Results are also in staging mode format and can be pasted back to the serial port to stage them.
+* IMPROVED: Some code flow for end binary size.
+
+0.1.1.0 - February 6, 2017
+* ADDED: Two more fan modes
+* ADDED: Local compile size tracking in comments
+* IMPROVED: Cleaned up code and increased comment clarity
