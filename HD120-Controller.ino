@@ -6,7 +6,7 @@
           4      7
             5  6
 
-    Version score 0.2.1.0
+    Version score 0.2.1.1
 
     TODO...
     - Multi-Fan coordination modes. For example a chaser that traverses fans and is side-aware.
@@ -764,10 +764,8 @@ void breakfast() {
         break;
       case 64 : // @ (at symbol) - Apply to all fans
         {
-          uint8_t rg = Serial.parseInt(); // Group
           uint8_t ri = Serial.parseInt(); // Index
           uint8_t iv = Serial.parseInt(); // Value
-          uint8_t ig = constrain(rg, 0, (SettingGroups - 1));
           uint8_t ii = constrain(ri, 0, (SettingItems - 1));
         for (int f = 1; f <= NumberOfFans; f++) {
           gSettings[f][ii] = iv;
