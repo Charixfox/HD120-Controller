@@ -1,18 +1,14 @@
 /* Yay Circles of Dooooooom! Gah. Anyway... after remapping, things should address kind of like:
-            0  11
-          1      10
+            0  11        
+          1      10     = Wires
         2          9
         3          8
           4      7
             5  6
 
-    Version score 0.2.0
-    Compiled size: 17,404
+    Version score 0.2.1.0
 
     TODO...
-    - EEPROM storage and loading of settings to persist the settings between system boots. -- DONE!
-    --- The EEPROM on an Arduino is rated for a minimum of 100,000 write cycles. This means even if somebody changed it 50 times a day every day,
-    --- it would last over five years.
     - Multi-Fan coordination modes. For example a chaser that traverses fans and is side-aware.
     - Develop better control protocol and communication system and possibly a PC program. ... Yeah, right. Halp? Anyone?
 
@@ -28,13 +24,16 @@ FASTLED_USING_NAMESPACE
 #define DATA_PIN            3       // Physical digital pin on the Arduino
 #define LED_TYPE            WS2812B // DO NOT CHANGE for HD120 RGB
 #define COLOR_ORDER         GRB     // DO NOT CHANGE for HD120 RGB unless hardware changes occur
-#define FRAMES_PER_SECOND   60      // Coding out to 72 LEDs takes just about 3ms, so this works without interrupt issues.
+#define FRAMES_PER_SECOND   60      // DO NOT CHANGE Data out to 72 LEDs takes just about 3ms, so this works without interrupt issues.
 #define BRIGHTNESS          128     // This is a safe brightness level for one fan powered wholly by USB.
+
+#define SETCOMPAT           1 // Defines the current compatibility level of the EEPROM storage.
+
+// Fan definitions
 #define NumberOfFans        6       // We will limit this to absolutely no more than one hub per controller because wiring two hubs together is a pain
 #define LedsPerFan          12      // 12 for HD120 RGB.
 #define NUM_LEDS            (NumberOfFans * LedsPerFan)
 
-#define SETCOMPAT           1 // Defines the current compatibility level of the EEPROM storage.
 
 // Additional support for LED Strips on Pin 4
 // - Technically we can support more strips, however I recommend against it in the stock setup. Please keep power draw (90mA/LED max) and connector/cable limits in mind
@@ -44,9 +43,18 @@ FASTLED_USING_NAMESPACE
 #define LedsPerStrip        10
 #define STRIP_LEDS          (NumberOfStrips * LedsPerStrip)
 
+// Um, what?
+#if NumberOfStrips == 0 && NumberOfFans == 0
+  #error "You need to have at least one strip or fan."
+#endif
+
+
 // EVIL macros. Evil, Evil, Evil
+#if NumberOfStrips
+  #define EM_S                (*strip[thisStrip])  // Addressing for strip modes that use thisStrip to grab the whole strip
+#endif
+#if NumberOfFans
 #define EM_F                (*fan[thisFan][0]) // Testing
-#define EM_S                (*strip[thisStrip])  // Addressing for strip modes that use thisStrip to grab the whole strip
 // Evil Macros for Fan Sides
 #define EM_FW               (*fan[thisFan][5])
 #define EM_FE               (*fan[thisFan][6])
@@ -55,6 +63,7 @@ FASTLED_USING_NAMESPACE
 #define EM_FNE              (*fan[thisFan][4])
 #define EM_FSW              (*fan[thisFan][2])
 #define EM_FSE              (*fan[thisFan][3])
+#endif
 
 /* SubSetsPerFan is not actually configurable but explained here anyway.
   // Defining the SubSets is hard-coded so cannot translate between fans or different subsets programmatically
@@ -66,13 +75,16 @@ FASTLED_USING_NAMESPACE
   // 4 = NE CCW
   // 5 = West Side Bottom to Top
   // 6 = East Side Bottom to Top */
+#if NumberOfFans
 #define SubSetsPerFan        7
+#endif
 
 /*---- SettingGroups ---------------------------------------------
   // 0 = Global
   // 1 to NumberOfFans = Per Fan
+  // NumberOfFans + 1 to NumberOfFans + NumberOfStrips = Per strip (For example, 6 fans and 4 strips, 7-10 = strips
   // I could have made 0 though x the fans, but then Global would always be at a different place. Trade either way, so in Fan settings I just x + 1 it
-  // NumberOfFans to NumberOfFans + NumberOfStrips = Per Strip */
+*/
 #define SettingGroups        (1 + NumberOfFans + NumberOfStrips)
 
 //---- SettingItems ----------------------------------------------
@@ -91,18 +103,30 @@ FASTLED_USING_NAMESPACE
 #define SettingItems        8
 
 // The actual LED Arrays which are built as Sets with Arrays
+#if NumberOfFans
 CRGBArray<NUM_LEDS>   leds;    // Operate on this array as if it had the correct layout.
 CRGBArray<NUM_LEDS>   actual;  // Display this array after mapping "leds" to "actual". In most code, ignore this.
+#endif
+#if NumberOfStrips
 CRGBArray<STRIP_LEDS> stripLeds;  // Strips in order
+#endif
 
+#if NumberOfFans
 CRGBSet *fan[NumberOfFans][SubSetsPerFan];      // Fan Subset Array
+#endif
+#if NumberOfStrips
 CRGBSet *strip[NumberOfStrips];                 // Strips Array
+#endif
 uint8_t gSettings[SettingGroups][SettingItems]; // Settings Array
 uint8_t sSettings[SettingGroups][SettingItems]; // Stage Settings Array
 
 
+#if NumberOfFans
 #define NumberOfModes       11 //Raise this as modes are created. Used to sanity-check settings.
+#endif
+#if NumberOfStrips
 #define NumberOfStripModes  6 //Raise this as modes are created. Used to sanity-check settings.
+#endif
 #define NumberOfGlobalModes 3 //Raise this as modes are created. Used to sanity-check settings.
 //===========================================================================================================
 // Mode Functions
@@ -116,6 +140,7 @@ uint8_t sSettings[SettingGroups][SettingItems]; // Stage Settings Array
 // (*fan[0][1])[3] = CRGB::Gray;            // Address one specific LED in one fan
 // (*fan[FanNumber][Segment]) then things   // Best overall.
 
+#if NumberOfFans
 
 
 //-- mode0() -----------------------------------------------------------------------------------------------
@@ -355,11 +380,13 @@ void mode9(uint8_t thisFan) {
 void mode10(uint8_t thisFan) {
     EM_F.fadeToBlackBy(rFS(thisFan, 1));
 }
+#endif
 
 
 //===========================================================================================================
 //=--- Strip Mode Functions ---==============================================================================
 //===========================================================================================================
+#if NumberOfStrips
 
 //-- smode0() -----------------------------------------------------------------------------------------------
 // Angry Myia Mode
@@ -408,6 +435,7 @@ void smode4(uint8_t thisStrip) {
 void smode5(uint8_t thisStrip) {
   EM_S = CRGB(rSS(thisStrip,1),rSS(thisStrip,2),rSS(thisStrip,3));
 }
+#endif
 
 
 //===========================================================================================================
@@ -433,7 +461,9 @@ void gmode1() {
 // Settings: 2 = Fan to flash; 3 = Red Channel; 4 = Green Channel; 5 = Blue Channel
 void gmode2() {
   uint8_t thisFan = rGS(2)-1;
+  #if NumberOfFans
   EM_F = CRGB(rGS(3), rGS(4), rGS(5));
+  #endif
   wGS(1, 0);
   sSettings[0][1] = 0; // Also wipe stage settings to avoid repeat during sync
 }
@@ -444,8 +474,10 @@ void gmode2() {
 //=--- End of Mode Functions ---=============================================================================
 //===========================================================================================================
 
+
 // Mode function pointer array to translate things cleanly from incoming data to mode.
 typedef void (*modefunarr)(uint8_t);
+#if NumberOfFans
 static modefunarr modefun[NumberOfModes] = {
   mode0,
   mode1,
@@ -459,7 +491,9 @@ static modefunarr modefun[NumberOfModes] = {
   mode9,
   mode10
 };
+#endif
 
+#if NumberOfStrips
 static modefunarr smodefun[NumberOfStripModes] = {
   smode0,
   smode1,
@@ -467,6 +501,7 @@ static modefunarr smodefun[NumberOfStripModes] = {
   smode3,
   smode4
 };
+#endif
 
 typedef void (*gmodefunarr)(); // typedef without parameters for global modes
 static gmodefunarr gmodefun[NumberOfGlobalModes] = {
@@ -485,9 +520,13 @@ uint8_t eeCompat[3]; // For checking the EEPROM header
 //==== Arduino setup Function ===============
 void setup() {
   delay(3000); // 3 second delay for recovery -> This is IMPORTANT
-  FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(actual, NUM_LEDS);
-  FastLED.addLeds<LED_TYPE, STRIP_PIN, COLOR_ORDER>(stripLeds, STRIP_LEDS);
-  /* Keep this for legacy reference until defineSets() is confirmed working
+#if NumberOfFans
+FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(actual, NUM_LEDS);
+#endif
+#if NumberOfStrips
+FastLED.addLeds<LED_TYPE, STRIP_PIN, COLOR_ORDER>(stripLeds, STRIP_LEDS);
+#endif
+/* Keep this for legacy reference until defineSets() is confirmed working
     fan[0][0] = new CRGBSet( leds(0, 11) );
     fan[0][1] = new CRGBSet( leds(6, 11) );*/
   defineSets();
@@ -500,12 +539,19 @@ void setup() {
 void loop() {
   FastLED.setBrightness(rGS(0)); // We'll do this first since Global may override it.
   breakfast();
-  processFans();
-  processStrips();
-  processGlobal();
+#if NumberOfFans
+processFans();
+#endif
+#if NumberOfStrips
+processStrips();
+#endif
+processGlobal();
+  #if NumberOfFans
   remap();                       //***Always run the remap function just before calling show().***
+  #endif
   FastLED.show();
-  FastLED.delay((1000 / FRAMES_PER_SECOND) - 3); //Approximately 3 ms goes into writing to the LEDs (27 us per LED)
+  uint8_t dataOverhead = (0.027 * NUM_LEDS) + (0.027 * STRIP_LEDS);
+  FastLED.delay((1000 / FRAMES_PER_SECOND) - dataOverhead); // Time goes into writing to the LEDs (27 us per LED)
 }
 
 
@@ -515,7 +561,14 @@ void loop() {
 //---- defineSets() --------------------------------
 // Set up Fans and other sets
 void defineSets() {
-  //Since the subsets are pretty much hard-coded, some will need to be defined by hand.
+#if NumberOfStrips
+// Set up full strips
+  for (uint8_t i = 0; i < NumberOfStrips; i++) {
+    strip[i] = new CRGBSet( stripLeds((i * LedsPerStrip), (((i + 1) * LedsPerStrip) - 1)));
+  }
+#endif
+#if NumberOfFans
+//Since the subsets are pretty much hard-coded, some will need to be defined by hand.
   //This will NOT work if fans with more than 12 LEDs come out. T^T
   //------------------------------------------------
   // 0 = Full Fan counter-clockwise
@@ -530,10 +583,6 @@ void defineSets() {
   for (uint8_t i = 0; i < NumberOfFans; i++) {
     fan[i][0] = new CRGBSet( leds((i * LedsPerFan), (((i + 1) * LedsPerFan) - 1)));
   }
-  // Set up full strips
-  for (uint8_t i = 0; i < NumberOfStrips; i++) {
-    strip[i] = new CRGBSet( stripLeds((i * LedsPerStrip), (((i + 1) * LedsPerStrip) - 1)));
-  }
   // Set up quadrants
   for (uint8_t i = 0; i < NumberOfFans; i++) {
     for (uint8_t q = 1; q < 5; q++) {
@@ -545,6 +594,7 @@ void defineSets() {
     fan[i][5] = new CRGBSet( leds((i * LedsPerFan) + 5, (i * LedsPerFan)));
     fan[i][6] = new CRGBSet( leds((i * LedsPerFan) + 6, (((i + 1) * LedsPerFan) - 1)));
   }
+#endif
 }
 
 //---- initSettings() --------------------------------
@@ -559,6 +609,7 @@ void initSettings() {
   gSettings[0][0] = BRIGHTNESS; //Set the initial brightness
 }
 
+#if NumberOfFans
 //---- remap()----------------------------------------
 // Function to remap "leds" array to "actual" array -
 // Cleaned up and shrunk
@@ -584,7 +635,9 @@ void processFans() {
     modefun[rFS(i, 0)](i);
   }
 }
+#endif
 
+#if NumberOfStrips
 //---- processStrips() ---------------------------------
 // Primary container to step through the strips and
 // call the mode function for each one
@@ -596,6 +649,7 @@ void processStrips() {
     smodefun[rSS(i, 0)](i);
   }
 }
+#endif
 
 //---- processGlobal() ---------------------------------
 // Primary container to call the mode function for
@@ -708,6 +762,18 @@ void breakfast() {
           Serial.println("<");
         }
         break;
+      case 64 : // @ (at symbol) - Apply to all fans
+        {
+          uint8_t rg = Serial.parseInt(); // Group
+          uint8_t ri = Serial.parseInt(); // Index
+          uint8_t iv = Serial.parseInt(); // Value
+          uint8_t ig = constrain(rg, 0, (SettingGroups - 1));
+          uint8_t ii = constrain(ri, 0, (SettingItems - 1));
+        for (int f = 1; f <= NumberOfFans; f++) {
+          gSettings[f][ii] = iv;
+        }
+        break;
+        }
       case 94 : // ^ Caret - Set stage settings
         {
           uint8_t rg = Serial.parseInt(); // Group
