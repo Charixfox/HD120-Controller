@@ -3,7 +3,7 @@ Arduino sketch to act as a custom controller for Corsair HD120 RGB Fans
 
 Copyright 2017 Kit Parenteau
 
-Version score: 0.2.0.0
+Version score: 0.2.1.0
 
 The lighting controller that comes standard for HD120 RGB fans left something to be desired.
 This code allows a 5V Arduino AVR to be used as a controller for the fan lighting.
@@ -94,6 +94,12 @@ https://raw.githubusercontent.com/FastLED/FastLED/gh-pages/images/HSV-rainbow-wi
 
 
 Changelog
+0.2.1.0 - May 13, 2017
+* FIXED: Will no longer have severe timing issues when NumberOfStrips is set to 0
+* ADDED: Use @ prefix to change a setting item on all fans at once. Ignores group number
+* * TODO: Remove need for group number
+* IMPROVED: Updated delay calculation logic to accoint for the number of LEDs.
+
 0.2.0.0 - April 23, 2017
 * ADDED: EEPROM Saving and Loading
 * ADDED: Beat Sync Control
