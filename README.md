@@ -73,32 +73,53 @@ Group 0 is always global. Then zero or more fan groups. Then zero or more strip 
  0   = Remembered Global Brightness
  1   = Global Mode
  2-5 = Global Mode Data
- 6   = Sync timing rate
+ 6   = Sync timing rate - Special Item
  7   = Global timing rate
 
 Fan settings:
 0   -> Mode
 1-7 -> Mode-dependent
 
+Mode-Dependant Settings are 0-255 unless otherwise indicated
+Rates are in BPM (60/Rate seconds per cycle)
+
 Modes:
-0 -> Angry Myia Mode - Cycle from teal to red and back, approx 10 sec per cycle
+0 ==> Hue Shift - Sine wave color change of all LEDs on the fan between two hues.
 Settings: 
-None. Not-configurable.
-ToDo: Consider confiiguration options.
+1 -> Starting Hue
+2 -> Emding Hue
+3 -> Hue Offset
+5 -> Phase Offset (Note 2)
+7 -> Rate
 
-1 -> Static Color
-Settings:
-1 -> Hue (FastLED 0-255 Hue, not 0-360. See Note 1 below.)
+Hue Offset allows passing through Red between hues. For example, Start 128 End 255 Phase Offset 64 will start at 192 and end at 64.
 
-2 -> Single Color Pulse
+1 ==> Single-point  Spinner - A rotating light point.
 Settings:
-1 -> Hue
-2 -> BPM (60/BPM = Time to pulse)
+1 -> Hue (Overridden by 3)
+2 -> 0 = Clockwise, 1+ = Counterclockwise
+3 -> 0 = Use Hue; 1+ = Rainbow Mode - Runs trhough all hues - Overrides 1
+4 -> Rate of rainbow change
+5 -> Blade Offset 0 - 11 (zero trhough number of leds per fan) - Offsets the position of the "blade" dot
+6 -> Fade Speed - After the dot leaves a LED, fade its trail
+7 -> Spin Rate
 
-3 -> Rotating full rainbow per fan
+
+2 ==> Rainbow span across LEDs
 Settings:
-None.
-ToDo: Consider direction/speed
+1 -> Chance of Sparkles - Very high will be a 60 FPS fade to white for the fan.
+2 -> Hue Steps per LED - 21 shows a full rainbow on the fan, 0 causes the whole fan to fade colors at once
+7 -> Rate of rainbow rotation - 0 is static
+
+3 -> Four-point spinner
+Settings:
+1 -> Hue (Overridden by 3)
+2 -> 0 = Clockwise, 1+ = Counterclockwise
+3 -> 0 = Use Hue; 1+ = Rainbow Mode - Runs trhough all hues - Overrides 1
+4 -> Rate of rainbow change
+5 -> Per Blade Hue Shift
+6 -> Fade Speed - After the dot leaves a LED, fade its trail
+7 -> Spin Rate
 
 4 -> Cycle full fan through rainbow and back in ten seconds
 Settings:
@@ -109,7 +130,7 @@ ToDo: Consider BPM options.
 Settings:
 1 -> Chance per frame of a sparkle, 0-255
 
-Note 1:
+##### Note 1:
 FastLED Hue Chart is [Here](https://raw.githubusercontent.com/FastLED/FastLED/gh-pages/images/HSV-rainbow-with-desc.jpg)
 0   -> Red
 32  -> Orange
@@ -120,6 +141,9 @@ FastLED Hue Chart is [Here](https://raw.githubusercontent.com/FastLED/FastLED/gh
 192 -> Purple
 224 -> Pink
 255 -> Red
+
+##### Note 2:
+Phase Offset applies to some Sine-wave situations. The value for a given rate is always the same. Phase offset creates a 0-255 offset from the base value. This allows, for example, two fan LED sets to operate in reverse of each other at the same rate.
 
 
 Changelog
