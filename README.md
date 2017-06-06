@@ -28,7 +28,6 @@ Coder Features
 * Uses FastLED - 8-bit mapped stuff makes things easy
 
 
--- NOT UP TO DATE FOR 0.2.0.0 - Refer to code comments until this is fully updated.
 ### Controls:
 Open a serial connection to the Arduino com port at 115200 Baud
 - For example, use Serial monitor or command line redirect to the serial port
@@ -103,7 +102,8 @@ Group | Purpose
 
 Group 0 is always global. Then zero or more fan groups. Then zero or more strip groups.
 
-#####-- Global Settings 
+##### Global Settings 
+
 Setting | Purpose
 ---: | :--- 
 0   | Remembered Global Brightness
@@ -116,11 +116,13 @@ Setting | Purpose
 0 ==> Nothing. No Global Override
 
 1 ==> Pulse brightness globally between 0 and Max Brightness 
+
 Setting | Purpose
 ---: | :--- 
 7 | Rate of Pulse
 
 2 ==> Flash one fan a color. This will unset after flashing, causing the normal fan actions to continue. Meant for sync special effects. Not for strips.
+
 Setting | Purpose
 ---: | :--- 
 2 | Fan number to flash
@@ -132,6 +134,7 @@ Setting | Purpose
 When global mode item 6 ius set to a rate above zero, the controller will enter Sync Timing Mode. At the speed of the rate, it will move stage settings to live, then send a "Ping" across Serial, consisting of a single question mark. Stage settings can be configured by the computer immediately after receiving a ping and they will be set to live on the next beat. WARNING: The serial port MUST be read by the computer when Sync Timing is enabled otherwise the serial buffer on the controller will overflow and hamper performance severely.
 
 ##### Fan settings:
+
 Setting | Purpose
 ---: | :--- 
 0   | Mode
@@ -142,6 +145,7 @@ Rates are in BPM (60/Rate seconds per cycle)
 
 Modes:
 0 ==> Hue Shift - Sine wave color change of all LEDs on the fan between two hues.
+
 Setting | Purpose
 ---: | :--- 
 1 | Starting Hue
@@ -153,6 +157,7 @@ Setting | Purpose
 Hue Offset allows passing through Red between hues. For example, Start 128 End 255 Phase Offset 64 will start at 192 and end at 64.
 
 1 ==> Single-point  Spinner - A rotating light point.
+
 Setting | Purpose
 ---: | :--- 
 1 | Hue (Overridden by 3)
@@ -165,6 +170,7 @@ Setting | Purpose
 
 
 2 ==> Rainbow span across LEDs
+
 Setting | Purpose
 ---: | :--- 
 1 | Chance of Sparkles - Very high will be a 60 FPS fade to white for the fan.
@@ -172,6 +178,7 @@ Setting | Purpose
 7 | Rate of rainbow rotation - 0 is static
 
 3 ==> Four-point spinner
+
 Setting | Purpose
 ---: | :--- 
 1 | Hue (Overridden by 3)
@@ -183,6 +190,7 @@ Setting | Purpose
 7 | Spin Rate
 
 4 ==> Double-Scan - Back and forth patter across two sides of the fan
+
 Setting | Purpose
 ---: | :--- 
 1 | Hue (Overridden by 3)
@@ -194,6 +202,7 @@ Setting | Purpose
 7 | Spin Rate
 
 5 ==> Two-point spinner
+
 Setting | Purpose
 ---: | :--- 
 1 | Hue (Overridden by 3)
@@ -205,6 +214,7 @@ Setting | Purpose
 7 | Spin Rate
 
 6 ==> "BPM" Mode from FastLED 100-Line Demo - Because somebody asked for it. Whatev's.
+
 Setting | Purpose
 ---: | :--- 
 1 | Hue Multiplier
@@ -212,6 +222,7 @@ Setting | Purpose
 7 | Rate
 
 7 ==> Split Sides
+
 Setting | Purpose
 ---: | :--- 
 1 | West Side Hue
@@ -223,6 +234,7 @@ Setting | Purpose
 - Both sides can be set to the same hue to pulse a color on the full fan
 
 8 ==> Split Quarters
+
 Setting | Purpose
 ---: | :--- 
 1 | Northwest Side Hue
@@ -234,6 +246,7 @@ Setting | Purpose
 7 | Pulse Rate
 
 9 ==> Full Fan RGB Color
+
 Setting | Purpose
 ---: | :--- 
 1 | Red Level
@@ -242,12 +255,14 @@ Setting | Purpose
 - People wanted white.
 
 10 ==> Fade to Black - Will fade at the fade rate and then do nothing more until changed. Useful for sync.
+
 Setting | Purpose
 ---: | :--- 
 1 | Fade Rate
 
 
 ##### Note 1:
+
 FastLED Hue Chart is [Here](https://raw.githubusercontent.com/FastLED/FastLED/gh-pages/images/HSV-rainbow-with-desc.jpg)
 - 0   -> Red
 - 32  -> Orange
