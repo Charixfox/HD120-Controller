@@ -94,150 +94,170 @@ An at symbol followed by two integers with arbitrary separation. Shortcut to set
 
 
 #### Default groups:
-0    -> Global
-1-6  -> Each fan
-7-10 -> Each strip
+
+Group | Purpose
+---: | :--- 
+0    | Global
+1-6  | Each fan
+7-10 | Each strip
 
 Group 0 is always global. Then zero or more fan groups. Then zero or more strip groups.
 
 #####-- Global Settings 
-0   = Remembered Global Brightness
-1   = Global Mode
-2-5 = Global Mode Data
-6   = Sync timing rate - Special Item
-7   = Global timing rate
+Setting | Purpose
+---: | :--- 
+0   | Remembered Global Brightness
+1   | Global Mode
+2-5 | Global Mode Data
+6   | Sync timing rate - Special Item
+7   | Global timing rate
 
 ###### Global Modes
 0 ==> Nothing. No Global Override
 
 1 ==> Pulse brightness globally between 0 and Max Brightness 
-Settings: 
-7 -> Rate of Pulse
+Setting | Purpose
+---: | :--- 
+7 | Rate of Pulse
 
 2 ==> Flash one fan a color. This will unset after flashing, causing the normal fan actions to continue. Meant for sync special effects. Not for strips.
-Settings:
-2 -> Fan number to flash
-3 -> Red channel value
-4 -> Green channel value
-5 -> Blue channel value
+Setting | Purpose
+---: | :--- 
+2 | Fan number to flash
+3 | Red channel value
+4 | Green channel value
+5 | Blue channel value
 
 ##### Sync Timing
 When global mode item 6 ius set to a rate above zero, the controller will enter Sync Timing Mode. At the speed of the rate, it will move stage settings to live, then send a "Ping" across Serial, consisting of a single question mark. Stage settings can be configured by the computer immediately after receiving a ping and they will be set to live on the next beat. WARNING: The serial port MUST be read by the computer when Sync Timing is enabled otherwise the serial buffer on the controller will overflow and hamper performance severely.
 
 ##### Fan settings:
-0   -> Mode
-1-7 -> Mode-dependent
+Setting | Purpose
+---: | :--- 
+0   | Mode
+1-7 | Mode-dependent
 
 Mode-Dependant Settings are 0-255 unless otherwise indicated
 Rates are in BPM (60/Rate seconds per cycle)
 
 Modes:
 0 ==> Hue Shift - Sine wave color change of all LEDs on the fan between two hues.
-Settings: 
-1 -> Starting Hue
-2 -> Emding Hue
-3 -> Hue Offset
-5 -> Phase Offset (Note 2)
-7 -> Rate
+Setting | Purpose
+---: | :--- 
+1 | Starting Hue
+2 | Emding Hue
+3 | Hue Offset
+5 | Phase Offset (Note 2)
+7 | Rate
 
 Hue Offset allows passing through Red between hues. For example, Start 128 End 255 Phase Offset 64 will start at 192 and end at 64.
 
 1 ==> Single-point  Spinner - A rotating light point.
-Settings:
-1 -> Hue (Overridden by 3)
-2 -> 0 = Clockwise, 1+ = Counterclockwise
-3 -> 0 = Use Hue; 1+ = Rainbow Mode - Runs trhough all hues - Overrides 1
-4 -> Rate of rainbow change
-5 -> Blade Offset 0 - 11 (zero trhough number of leds per fan) - Offsets the position of the "blade" dot
-6 -> Fade Speed - After the dot leaves a LED, fade its trail
-7 -> Spin Rate
+Setting | Purpose
+---: | :--- 
+1 | Hue (Overridden by 3)
+2 | 0 = Clockwise, 1+ = Counterclockwise
+3 | 0 = Use Hue; 1+ = Rainbow Mode - Runs trhough all hues - Overrides 1
+4 | Rate of rainbow change
+5 | Blade Offset 0 - 11 (zero trhough number of leds per fan) - Offsets the position of the "blade" dot
+6 | Fade Speed - After the dot leaves a LED, fade its trail
+7 | Spin Rate
 
 
 2 ==> Rainbow span across LEDs
-Settings:
-1 -> Chance of Sparkles - Very high will be a 60 FPS fade to white for the fan.
-2 -> Hue Steps per LED - 21 shows a full rainbow on the fan, 0 causes the whole fan to fade colors at once
-7 -> Rate of rainbow rotation - 0 is static
+Setting | Purpose
+---: | :--- 
+1 | Chance of Sparkles - Very high will be a 60 FPS fade to white for the fan.
+2 | Hue Steps per LED - 21 shows a full rainbow on the fan, 0 causes the whole fan to fade colors at once
+7 | Rate of rainbow rotation - 0 is static
 
 3 ==> Four-point spinner
-Settings:
-1 -> Hue (Overridden by 3)
-2 -> 0 = Clockwise, 1+ = Counterclockwise
-3 -> 0 = Use Hue; 1+ = Rainbow Mode - Runs trhough all hues - Overrides 1
-4 -> Rate of rainbow change
-5 -> Per Blade Hue Shift
-6 -> Fade Speed - After the dot leaves a LED, fade its trail
-7 -> Spin Rate
+Setting | Purpose
+---: | :--- 
+1 | Hue (Overridden by 3)
+2 | 0 = Clockwise, 1+ = Counterclockwise
+3 | 0 = Use Hue; 1+ = Rainbow Mode - Runs trhough all hues - Overrides 1
+4 | Rate of rainbow change
+5 | Per Blade Hue Shift
+6 | Fade Speed - After the dot leaves a LED, fade its trail
+7 | Spin Rate
 
 4 ==> Double-Scan - Back and forth patter across two sides of the fan
-Settings:
-1 -> Hue (Overridden by 3)
-2 -> Rotation Offset = 0 - 11 (Zero through LedsPerFan - 1)
-3 -> 0 = Use Hue; 1+ = Rainbow Mode - Runs trhough all hues - Overrides 1
-4 -> Rate of rainbow change
-5 -> Per Blade Hue Shift
-6 -> Fade Speed - After the dot leaves a LED, fade its trail
-7 -> Spin Rate
+Setting | Purpose
+---: | :--- 
+1 | Hue (Overridden by 3)
+2 | Rotation Offset = 0 - 11 (Zero through LedsPerFan - 1)
+3 | 0 = Use Hue; 1+ = Rainbow Mode - Runs trhough all hues - Overrides 1
+4 | Rate of rainbow change
+5 | Per Blade Hue Shift
+6 | Fade Speed - After the dot leaves a LED, fade its trail
+7 | Spin Rate
 
 5 ==> Two-point spinner
-Settings:
-1 -> Hue (Overridden by 3)
-2 -> 0 = Clockwise, 1+ = Counterclockwise
-3 -> 0 = Use Hue; 1+ = Rainbow Mode - Runs trhough all hues - Overrides 1
-4 -> Rate of rainbow change
-5 -> Per Blade Hue Shift
-6 -> Fade Speed - After the dot leaves a LED, fade its trail
-7 -> Spin Rate
+Setting | Purpose
+---: | :--- 
+1 | Hue (Overridden by 3)
+2 | 0 = Clockwise, 1+ = Counterclockwise
+3 | 0 = Use Hue; 1+ = Rainbow Mode - Runs trhough all hues - Overrides 1
+4 | Rate of rainbow change
+5 | Per Blade Hue Shift
+6 | Fade Speed - After the dot leaves a LED, fade its trail
+7 | Spin Rate
 
 6 ==> "BPM" Mode from FastLED 100-Line Demo - Because somebody asked for it. Whatev's.
-Settings:
-1 -> Hue Multiplier
-2 -> Beat Multiplier
-7 -> Rate
+Setting | Purpose
+---: | :--- 
+1 | Hue Multiplier
+2 | Beat Multiplier
+7 | Rate
 
 7 ==> Split Sides
-Settings:
-1 -> West Side Hue
-2 -> East Side Hue
-4 -> Fan pulse phase offset
-5 -> Per side pulse phase offset
-6 -> 0 = No pulse; 1 = Sine pulse; 2 = Sawtooth In Pulse; 3 = Sawtooth Out Pulse; 4+ Triangle Wave
-7 -> Pulse Rate
+Setting | Purpose
+---: | :--- 
+1 | West Side Hue
+2 | East Side Hue
+4 | Fan pulse phase offset
+5 | Per side pulse phase offset
+6 | 0 = No pulse; 1 = Sine pulse; 2 = Sawtooth In Pulse; 3 = Sawtooth Out Pulse; 4+ Triangle Wave
+7 | Pulse Rate
 - Both sides can be set to the same hue to pulse a color on the full fan
 
 8 ==> Split Quarters
-Settings:
-1 -> Northwest Side Hue
-2 -> Northeast Side Hue
-3 -> Southeast Side Hue
-4 -> Southwest Side Hue
-5 -> Per side pulse phase offset
-6 -> 0 = No pulse; 1 = Sine pulse; 2 = Sawtooth In Pulse; 3 = Sawtooth Out Pulse; 4+ Triangle Wave
-7 -> Pulse Rate
+Setting | Purpose
+---: | :--- 
+1 | Northwest Side Hue
+2 | Northeast Side Hue
+3 | Southeast Side Hue
+4 | Southwest Side Hue
+5 | Per side pulse phase offset
+6 | 0 = No pulse; 1 = Sine pulse; 2 = Sawtooth In Pulse; 3 = Sawtooth Out Pulse; 4+ Triangle Wave
+7 | Pulse Rate
 
 9 ==> Full Fan RGB Color
-Settings:
-1 -> Red Level
-2 -> Green Level
-3 -> Blue Level
+Setting | Purpose
+---: | :--- 
+1 | Red Level
+2 | Green Level
+3 | Blue Level
 - People wanted white.
 
 10 ==> Fade to Black - Will fade at the fade rate and then do nothing more until changed. Useful for sync.
-Settings:
-1 -> Fade Rate
+Setting | Purpose
+---: | :--- 
+1 | Fade Rate
 
 
 ##### Note 1:
 FastLED Hue Chart is [Here](https://raw.githubusercontent.com/FastLED/FastLED/gh-pages/images/HSV-rainbow-with-desc.jpg)
-0   -> Red
-32  -> Orange
-64  -> Yellow
-96  -> Green
-128 -> Aqua/Teal
-160 -> Blue
-192 -> Purple
-224 -> Pink
-255 -> Red
+- 0   -> Red
+- 32  -> Orange
+- 64  -> Yellow
+- 96  -> Green
+- 128 -> Aqua/Teal
+- 160 -> Blue
+- 192 -> Purple
+- 224 -> Pink
+- 255 -> Red
 
 ##### Note 2:
 Phase Offset applies to some Sine-wave situations. The value for a given rate is always the same. Phase offset creates a 0-255 offset from the base value. This allows, for example, two fan LED sets to operate in reverse of each other at the same rate.
