@@ -51,7 +51,7 @@ $ | Load settings from memory
 Any character that is not part of a continuing command or a header will be discarded and disregarded.
 
 #### Header Commands
-##### Set Live
+##### Set live
 
 A greater than symbol followed by three integers with arbitrary separation. We recommend you use single-character separation to avoid excess command read time. This sets directly into the live settings and takes effect immediately.
 
@@ -62,21 +62,69 @@ The integers, in order, are Setting Group, Setting Item, Setting Value. Examples
 >1.0.0>1.1.128>1.2.255    --> Sets three settings at once
 ```
 
-Default groups:
+##### Set stage
+
+A karet symbol followed by three integers with arbitrary separation. We recommend you use single-character separation to avoid excess command read time. This sets into the stage settings and must be transferred to live to take effect.
+
+The integers, in order, are Setting Group, Setting Item, Setting Value. Examples:
+```
+^0,0,255    --> Sets group 0, item 0 to 255
+^1.0=6      --> Sets group 1, item 0 to 6
+^1.0.0^1.1.128^1.2.255    --> Sets three settings at once
+```
+
+##### Transfer stage to live
+
+A less than symbol. No further input needed. Transfers all settings currently on stage to live settings. This also occurs automatically immediately before a sync ping. This allows settings to be configured and then put into play simultaneously.
+
+##### Save settings to memory
+
+An exclamation point. No further input needed. Saves all live settings to the EEPROM on the controller. 
+
+##### Load settings from memory
+A dollar sign. No further input needed. Loads settings from EEPROM on the controller. Also occurs automatically on startup if the setting save area is compatible with the current configuration, otherwise reinitializes the save area.
+
+##### Query live settings
+
+A question mark. No further input needed. Sends the current live settings across the serial connection. The settings are formatted in such a way that they can be sent back to set them.
+
+##### Set All Fans
+
+An at symbol followed by two integers with arbitrary separation. Shortcut to set a given Item to a given Value on all fans simultaneously. Sets LIVE values. Only affects fans, not strips.
+
+
+#### Default groups:
 0    -> Global
 1-6  -> Each fan
 7-10 -> Each strip
 
 Group 0 is always global. Then zero or more fan groups. Then zero or more strip groups.
 
- -- Global Settings 
- 0   = Remembered Global Brightness
- 1   = Global Mode
- 2-5 = Global Mode Data
- 6   = Sync timing rate - Special Item
- 7   = Global timing rate
+#####-- Global Settings 
+0   = Remembered Global Brightness
+1   = Global Mode
+2-5 = Global Mode Data
+6   = Sync timing rate - Special Item
+7   = Global timing rate
 
-Fan settings:
+###### Global Modes
+0 ==> Nothing. No Global Override
+
+1 ==> Pulse brightness globally between 0 and Max Brightness 
+Settings: 
+7 -> Rate of Pulse
+
+2 ==> Flash one fan a color. This will unset after flashing, causing the normal fan actions to continue. Meant for sync special effects. Not for strips.
+Settings:
+2 -> Fan number to flash
+3 -> Red channel value
+4 -> Green channel value
+5 -> Blue channel value
+
+##### Sync Timing
+When global mode item 6 ius set to a rate above zero, the controller will enter Sync Timing Mode. At the speed of the rate, it will move stage settings to live, then send a "Ping" across Serial, consisting of a single question mark. Stage settings can be configured by the computer immediately after receiving a ping and they will be set to live on the next beat. WARNING: The serial port MUST be read by the computer when Sync Timing is enabled otherwise the serial buffer on the controller will overflow and hamper performance severely.
+
+##### Fan settings:
 0   -> Mode
 1-7 -> Mode-dependent
 
@@ -111,7 +159,7 @@ Settings:
 2 -> Hue Steps per LED - 21 shows a full rainbow on the fan, 0 causes the whole fan to fade colors at once
 7 -> Rate of rainbow rotation - 0 is static
 
-3 -> Four-point spinner
+3 ==> Four-point spinner
 Settings:
 1 -> Hue (Overridden by 3)
 2 -> 0 = Clockwise, 1+ = Counterclockwise
@@ -121,14 +169,63 @@ Settings:
 6 -> Fade Speed - After the dot leaves a LED, fade its trail
 7 -> Spin Rate
 
-4 -> Cycle full fan through rainbow and back in ten seconds
+4 ==> Double-Scan - Back and forth patter across two sides of the fan
 Settings:
-None.
-ToDo: Consider BPM options.
+1 -> Hue (Overridden by 3)
+2 -> Rotation Offset = 0 - 11 (Zero through LedsPerFan - 1)
+3 -> 0 = Use Hue; 1+ = Rainbow Mode - Runs trhough all hues - Overrides 1
+4 -> Rate of rainbow change
+5 -> Per Blade Hue Shift
+6 -> Fade Speed - After the dot leaves a LED, fade its trail
+7 -> Spin Rate
 
-5 -> Rainbow Sparkles - Same as 3 Plus Sparkles
+5 ==> Two-point spinner
 Settings:
-1 -> Chance per frame of a sparkle, 0-255
+1 -> Hue (Overridden by 3)
+2 -> 0 = Clockwise, 1+ = Counterclockwise
+3 -> 0 = Use Hue; 1+ = Rainbow Mode - Runs trhough all hues - Overrides 1
+4 -> Rate of rainbow change
+5 -> Per Blade Hue Shift
+6 -> Fade Speed - After the dot leaves a LED, fade its trail
+7 -> Spin Rate
+
+6 ==> "BPM" Mode from FastLED 100-Line Demo - Because somebody asked for it. Whatev's.
+Settings:
+1 -> Hue Multiplier
+2 -> Beat Multiplier
+7 -> Rate
+
+7 ==> Split Sides
+Settings:
+1 -> West Side Hue
+2 -> East Side Hue
+4 -> Fan pulse phase offset
+5 -> Per side pulse phase offset
+6 -> 0 = No pulse; 1 = Sine pulse; 2 = Sawtooth In Pulse; 3 = Sawtooth Out Pulse; 4+ Triangle Wave
+7 -> Pulse Rate
+- Both sides can be set to the same hue to pulse a color on the full fan
+
+8 ==> Split Quarters
+Settings:
+1 -> Northwest Side Hue
+2 -> Northeast Side Hue
+3 -> Southeast Side Hue
+4 -> Southwest Side Hue
+5 -> Per side pulse phase offset
+6 -> 0 = No pulse; 1 = Sine pulse; 2 = Sawtooth In Pulse; 3 = Sawtooth Out Pulse; 4+ Triangle Wave
+7 -> Pulse Rate
+
+9 ==> Full Fan RGB Color
+Settings:
+1 -> Red Level
+2 -> Green Level
+3 -> Blue Level
+- People wanted white.
+
+10 ==> Fade to Black - Will fade at the fade rate and then do nothing more until changed. Useful for sync.
+Settings:
+1 -> Fade Rate
+
 
 ##### Note 1:
 FastLED Hue Chart is [Here](https://raw.githubusercontent.com/FastLED/FastLED/gh-pages/images/HSV-rainbow-with-desc.jpg)
@@ -144,6 +241,9 @@ FastLED Hue Chart is [Here](https://raw.githubusercontent.com/FastLED/FastLED/gh
 
 ##### Note 2:
 Phase Offset applies to some Sine-wave situations. The value for a given rate is always the same. Phase offset creates a 0-255 offset from the base value. This allows, for example, two fan LED sets to operate in reverse of each other at the same rate.
+
+##### Extra Note:
+Several interesting effects can be created with various values in the modes. Usually changing a value by a small amount has little effect, but some values can be dramatic.
 
 
 Changelog
