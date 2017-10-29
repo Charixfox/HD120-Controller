@@ -32,7 +32,6 @@ FASTLED_USING_NAMESPACE
 // have four fans or two or no strips, you can leave this all be. */
 #define LED_TYPE            WS2812B // DO NOT CHANGE for HD120 RGB
 #define COLOR_ORDER         GRB     // DO NOT CHANGE for HD120 RGB unless hardware changes occur
-#define FRAMES_PER_SECOND   60      // DO NOT CHANGE Data out to 72 LEDs takes just about 3ms, so this works without interrupt issues.
 #define BRIGHTNESS          128     // This is a safe brightness level for one fan powered wholly by USB.
 
 #define SETCOMPAT           1       // Defines the current compatibility level of the EEPROM storage.
@@ -630,12 +629,10 @@ void setup() {
   Serial.begin(115200);
   checkStorage();
 }
-unsigned long starttimer, endtimer, timedelta;
 
 
 //==== Arduino Main Loop ====================
 void loop() {
-  starttimer = micros();
   FastLED.setBrightness(rGS(0)); // We'll do this first since Global may override it.
   breakfast();
   #if NumberOfFans
@@ -648,9 +645,7 @@ void loop() {
   #if NumberOfFans
     remap();                       //***Always run the remap function just before calling show().***
   #endif
-  endtimer = micros();
-  timedelta = endtimer - starttimer;
-  FastLED.delay((1000 / FRAMES_PER_SECOND) - (timedelta / 1000)); // This calls show as many times before the next FPS-based recalc
+  FastLED.delay(13); // This calls show as many times before the next FPS-based recalc
 }
 
 
