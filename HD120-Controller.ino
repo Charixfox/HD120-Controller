@@ -20,6 +20,15 @@
 #include "FastLED.h"                // The actual LED control code. Library added aseparately.
 #include <avr/eeprom.h>             // Default EEPROM library from the IDE
 
+// Uncomment the following line to enable different types of fans
+#define FAN_TYPES                   // You'll also need to edit FanData theFans a few lines below, remove any fans if you have less than six
+
+#ifdef FAN_TYPES
+#include "FanTypes.h"
+                                    // List your fans by type in order, valid types are HD120 & LL120
+constexpr FanData theFans[] = { LL120, HD120, LL120, HD120, HD120, HD120 };
+#endif
+
 FASTLED_USING_NAMESPACE
 // Basic Configuration
 #define DATA_PIN            3       // Physical digital pin on the Arduino
@@ -32,16 +41,36 @@ FASTLED_USING_NAMESPACE
 // have four fans or two or no strips, you can leave this all be. */
 #define LED_TYPE            WS2812B // DO NOT CHANGE for HD120 RGB
 #define COLOR_ORDER         GRB     // DO NOT CHANGE for HD120 RGB unless hardware changes occur
-#define FRAMES_PER_SECOND   60      // DO NOT CHANGE Data out to 72 LEDs takes just about 3ms, so this works without interrupt issues.
 #define BRIGHTNESS          128     // This is a safe brightness level for one fan powered wholly by USB.
 
 #define SETCOMPAT           1       // Defines the current compatibility level of the EEPROM storage.
 
-// Fan definitions
+#ifndef FAN_TYPES
+
+// Fan definitions          Comment out NumberOfFans on the next line to disable fan support
 #define NumberOfFans        6       // We will limit this to absolutely no more than one hub per controller because wiring two hubs together is a pain
 #define LedsPerFan          12      // 12 for HD120 RGB.
 #define NUM_LEDS            (NumberOfFans * LedsPerFan)
 
+//#define FanType             "HD120"
+//#define RingsPerFan         1
+//#define RingOffset          2
+//#define OuterOffset         0
+#else
+
+// Fan definitions          Comment out NumberOfFans on the next line to disable fan support
+#define NumberOfFans        numFans(theFans)
+#define LedsPerFan          ledsPerFan(theFans, thisFan)
+#define NUM_LEDS            numLeds(theFans)
+
+#define FanType             fanType(theFans, thisFan)
+#define RingsPerFan         ringsPerFan(theFans, thisFan)
+#define OuterOffset         outerOffset(theFans, thisFan)
+
+#define showLedData         Serial.print(thisFan + 1);Serial.print(". Type=");Serial.print(FanType);Serial.print(" LedsPerFan="); \
+                            Serial.print(LedsPerFan);Serial.print(" RingsPerFan=");Serial.print(RingsPerFan);Serial.print(" OuterOffset="); \
+                            Serial.println(OuterOffset);
+#endif
 
 /* Additional support for LED Strips on Pin 4
 // - Technically we can support more strips, however I recommend against it in the stock setup. Please keep power draw (90mA/LED max) and connector/cable limits in mind
@@ -51,8 +80,8 @@ FASTLED_USING_NAMESPACE
 #define STRIP_LEDS          (NumberOfStrips * LedsPerStrip)
 
 // Um, what?
-#if NumberOfStrips == 0 && NumberOfFans == 0
-  #error "You need to have at least one strip or fan."
+#if NumberOfStrips == 0 && !defined NumberOfFans
+#error "You need to have at least one strip or fan."
 #endif
 
 
@@ -60,7 +89,7 @@ FASTLED_USING_NAMESPACE
 #if NumberOfStrips
   #define EM_S                (*strip[thisStrip])  // Addressing for strip modes that use thisStrip to grab the whole strip
 #endif
-#if NumberOfFans
+#ifdef NumberOfFans
 #define EM_F                (*fan[thisFan][0])
 // Evil Macros for Fan Sides
 #define EM_FW               (*fan[thisFan][5])
@@ -89,7 +118,7 @@ FASTLED_USING_NAMESPACE
   // 4 = NE CCW
   // 5 = West Side Bottom to Top
   // 6 = East Side Bottom to Top */
-#if NumberOfFans
+#ifdef NumberOfFans
 #define SubSetsPerFan        7
 #endif
 
@@ -119,7 +148,7 @@ FASTLED_USING_NAMESPACE
 #define SettingItems        8
 
 // The actual LED Arrays which are built as Sets with Arrays
-#if NumberOfFans
+#ifdef NumberOfFans
 CRGBArray<NUM_LEDS>   leds;    // Operate on this array as if it had the correct layout.
 CRGBArray<NUM_LEDS>   actual;  // Display this array after mapping "leds" to "actual". In most code, ignore this.
 /* Note on Scratch Space:
@@ -132,7 +161,7 @@ CRGBArray<NUM_LEDS>   actual;  // Display this array after mapping "leds" to "ac
 CRGBArray<STRIP_LEDS> stripLeds;  // Strips in order
 #endif
 
-#if NumberOfFans
+#ifdef NumberOfFans
 CRGBSet *fan[NumberOfFans][SubSetsPerFan];      // Fan Subset Array
 #endif
 #if NumberOfStrips
@@ -143,7 +172,7 @@ uint8_t sSettings[SettingGroups][SettingItems]; // Stage Settings Array
 uint8_t *gMap[MaxGroups][2];                    // Pointer array for grouping mappers
 
 
-#if NumberOfFans
+#ifdef NumberOfFans
 #define NumberOfModes       11 // Raise this as modes are created. Used to sanity-check settings.
 #endif
 #if NumberOfStrips
@@ -164,7 +193,7 @@ uint8_t *gMap[MaxGroups][2];                    // Pointer array for grouping ma
 // (*fan[FanNumber][Segment]) then things   // Best overall.
 */
 
-#if NumberOfFans
+#ifdef NumberOfFans
 
 
 //-- mode0() -----------------------------------------------------------------------------------------------
@@ -551,7 +580,7 @@ void gmode1() {
 // Settings: 2 = Fan to flash; 3 = Red Channel; 4 = Green Channel; 5 = Blue Channel */
 void gmode2() {
   uint8_t thisFan = rGS(2)-1;
-  #if NumberOfFans
+  #ifdef NumberOfFans
   EM_F = CRGB(rGS(3), rGS(4), rGS(5));
   #endif
   wGS(1, 0);
@@ -569,7 +598,7 @@ void gmode2() {
 // Define the "modefunarr" type array of pointers to functions that take one thing.
 typedef void (*modefunarr)(uint8_t);
 
-#if NumberOfFans
+#ifdef NumberOfFans
 static modefunarr modefun[NumberOfModes] = {
   mode0,
   mode1,
@@ -619,7 +648,7 @@ uint8_t eeCompat[3]; // For checking the EEPROM header
 //==== Arduino setup Function ===============
 void setup() {
   delay(3000); // 3 second delay for recovery -> This is IMPORTANT
-  #if NumberOfFans
+  #ifdef NumberOfFans
     FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(actual, NUM_LEDS);
   #endif
   #if NumberOfStrips
@@ -630,27 +659,23 @@ void setup() {
   Serial.begin(115200);
   checkStorage();
 }
-unsigned long starttimer, endtimer, timedelta;
 
 
 //==== Arduino Main Loop ====================
 void loop() {
-  starttimer = micros();
   FastLED.setBrightness(rGS(0)); // We'll do this first since Global may override it.
   breakfast();
-  #if NumberOfFans
+  #ifdef NumberOfFans
     processFans();
   #endif
   #if NumberOfStrips
     processStrips();
   #endif
   processGlobal();
-  #if NumberOfFans
+  #ifdef NumberOfFans
     remap();                       //***Always run the remap function just before calling show().***
   #endif
-  endtimer = micros();
-  timedelta = endtimer - starttimer;
-  FastLED.delay((1000 / FRAMES_PER_SECOND) - (timedelta / 1000)); // This calls show as many times before the next FPS-based recalc
+  FastLED.delay(13); // This calls show as many times before the next FPS-based recalc
 }
 
 
@@ -666,7 +691,7 @@ void defineSets() {
     strip[i] = new CRGBSet( stripLeds((i * LedsPerStrip), (((i + 1) * LedsPerStrip) - 1)));
   }
 #endif
-#if NumberOfFans
+#ifdef NumberOfFans
 //Since the subsets are pretty much hard-coded, some will need to be defined by hand.
   //This will NOT work if fans with more than 12 LEDs come out. T^T
   //------------------------------------------------
@@ -679,19 +704,21 @@ void defineSets() {
   // 6 = East Side Bottom to Top
   //------------------------------------------------
   // Set up full fans
-  for (uint8_t i = 0; i < NumberOfFans; i++) {
-    fan[i][0] = new CRGBSet( leds((i * LedsPerFan), (((i + 1) * LedsPerFan) - 1)));
+  uint8_t currentOffset = 0;      // increase size of type for more than 256 leds 
+  for (uint8_t thisFan = 0; thisFan < NumberOfFans; thisFan++) {
+    fan[thisFan][0] = new CRGBSet(leds(currentOffset, currentOffset + LedsPerFan - 1));
+    currentOffset += LedsPerFan;
   }
   // Set up quadrants
-  for (uint8_t i = 0; i < NumberOfFans; i++) {
+  for (uint8_t thisFan = 0; thisFan < NumberOfFans; thisFan++) {
     for (uint8_t q = 1; q < 5; q++) {
-      fan[i][q] = new CRGBSet( leds((i * LedsPerFan) + ((q - 1) * 3), ((i * LedsPerFan) + (q * 3) - 1)));
+      fan[thisFan][q] = new CRGBSet( leds((thisFan * LedsPerFan) + ((q - 1) * 3), ((thisFan * LedsPerFan) + (q * 3) - 1)));
     }
   }
   // Set up sides
-  for (uint8_t i = 0; i < NumberOfFans; i++) {
-    fan[i][5] = new CRGBSet( leds((i * LedsPerFan) + 5, (i * LedsPerFan)));
-    fan[i][6] = new CRGBSet( leds((i * LedsPerFan) + 6, (((i + 1) * LedsPerFan) - 1)));
+  for (uint8_t thisFan = 0; thisFan < NumberOfFans; thisFan++) {
+    fan[thisFan][5] = new CRGBSet( leds((thisFan * LedsPerFan) + 5, (thisFan * LedsPerFan)));
+    fan[thisFan][6] = new CRGBSet( leds((thisFan * LedsPerFan) + 6, (((thisFan + 1) * LedsPerFan) - 1)));
   }
 #endif
 }
@@ -708,11 +735,12 @@ void initSettings() {
   gSettings[0][0] = BRIGHTNESS; //Set the initial brightness
 }
 
-#if NumberOfFans
+#ifdef NumberOfFans
 //---- remap()----------------------------------------
 // Function to remap "leds" array to "actual" array -
 // Cleaned up and shrunk
 void remap() {
+#ifndef FAN_TYPES
   for (uint8_t i = 0; i < NUM_LEDS; i++) {
     if ( (i % LedsPerFan == 0) || (i % LedsPerFan == 1) ) {
       actual[i] = leds[(floor(i / LedsPerFan) * LedsPerFan) + 10 + (i % 12)];
@@ -720,6 +748,19 @@ void remap() {
       actual[i] = leds[i - 2];
     }
   }
+#else
+  uint8_t currentLed = 0;
+  for (uint8_t thisFan = 0; thisFan < NumberOfFans; thisFan++) {
+    for (uint8_t thisLed = 0; thisLed < LedsPerFan; thisLed++, currentLed++) {
+      if (thisLed < 2) {
+        actual[currentLed] = leds[currentLed + LedsPerFan - 2];
+      }
+      else {
+        actual[currentLed] = leds[currentLed - 2];
+      }
+    }
+  }
+#endif
 }
 
 //---- processFans() ---------------------------------
@@ -911,9 +952,20 @@ void breakfast() {
           }
           Serial.println("<");
         }
-        if (gMap[1][1]) {
-        Serial.println(timedelta);
+//        if (gMap[1][1]) {
+//        Serial.println(timedelta);
+//        }
+
+#ifdef FAN_TYPES
+        Serial.print("NumberOfFans=");
+        Serial.println(NumberOfFans);
+        for (int thisFan = 0; thisFan < NumberOfFans; thisFan++)
+        {
+          showLedData
         }
+        Serial.print("NUM_LEDS=");
+        Serial.println(NUM_LEDS);
+#endif
         break;
       case 64 : // @ (at symbol) - Apply to all fans
         {
