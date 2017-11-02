@@ -1,0 +1,34 @@
+{
+  "configurations": [
+    {
+      "name": "Visual Micro",
+      "intelliSenseMode": "msvc-x64",
+      "includePath": [
+        "${projectRoot}..\\HD120-Controller",
+        "${projectRoot}..\\..\\..\\Documents\\Arduino\\libraries\\FastLED",
+        "${projectRoot}..\\..\\..\\Documents\\arduino-1.8.4\\libraries",
+        "${projectRoot}..\\..\\..\\Documents\\arduino-1.8.4\\hardware\\arduino\\avr\\libraries",
+        "${projectRoot}..\\..\\..\\Documents\\Arduino\\libraries",
+        "${projectRoot}..\\..\\..\\Documents\\arduino-1.8.4\\hardware\\arduino\\avr\\cores\\arduino",
+        "${projectRoot}..\\..\\..\\Documents\\arduino-1.8.4\\hardware\\arduino\\avr\\variants\\leonardo",
+        "${projectRoot}..\\..\\..\\Documents\\arduino-1.8.4\\hardware\\tools\\avr\\avr\\include\\",
+        "${projectRoot}..\\..\\..\\Documents\\arduino-1.8.4\\hardware\\tools\\avr\\avr\\include\\avr\\",
+        "${projectRoot}..\\..\\..\\Documents\\arduino-1.8.4\\hardware\\tools\\avr\\lib\\gcc\\avr\\4.8.1\\include",
+        "${projectRoot}..\\..\\..\\Documents\\arduino-1.8.4\\hardware\\tools\\avr\\lib\\gcc\\avr\\4.9.2\\include",
+        "${projectRoot}..\\..\\..\\Documents\\arduino-1.8.4\\hardware\\tools\\avr\\lib\\gcc\\avr\\4.9.3\\include"
+      ],
+      "defines": [
+        "__AVR_ATmega32u4__",
+        "__AVR_ATmega32U4__",
+        "F_CPU=16000000L",
+        "ARDUINO=10804",
+        "ARDUINO_AVR_LEONARDO",
+        "ARDUINO_ARCH_AVR",
+        "USB_VID=0x2341",
+        "USB_PID=0x8036",
+        "__cplusplus=201103L",
+        "_VMICRO_INTELLISENSE"
+      ]
+    }
+  ]
+}
