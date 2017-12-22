@@ -32,6 +32,7 @@ FASTLED_USING_NAMESPACE
 // have four fans or two or no strips, you can leave this all be. */
 #define LED_TYPE            WS2812B // DO NOT CHANGE for HD120 RGB
 #define COLOR_ORDER         GRB     // DO NOT CHANGE for HD120 RGB unless hardware changes occur
+#define FRAMES_PER_SECOND   60      // DO NOT CHANGE Data out to 72 LEDs takes just about 3ms, so this works without interrupt issues.
 #define BRIGHTNESS          128     // This is a safe brightness level for one fan powered wholly by USB.
 
 #define SETCOMPAT           1       // Defines the current compatibility level of the EEPROM storage.
@@ -58,6 +59,8 @@ FASTLED_USING_NAMESPACE
 // EVIL macros. Evil, Evil, Evil
 #if NumberOfStrips
   #define EM_S                (*strip[thisStrip])  // Addressing for strip modes that use thisStrip to grab the whole strip
+  #define EM_S1               (*strip[thisStrip])(0,(LedsPerStrip / 2) - 1)
+  #define EM_S2               (*strip[thisStrip])((LedsPerStrip / 2),LedsPerStrip - 1)
 #endif
 #if NumberOfFans
 #define EM_F                (*fan[thisFan][0])
@@ -167,16 +170,17 @@ uint8_t *gMap[MaxGroups][2];                    // Pointer array for grouping ma
 
 
 //-- mode0() -----------------------------------------------------------------------------------------------
-// Hue Shift
+/* Hue Shift
 // Settings: 1 = Starting Hue; 2 = Ending Hue; 3 = Hue Offset; 5 = Phase Offset; 7 = Rate in BPM
+//           4 = Starting Saturation; 6 = Ending Saturation - Added in these positions for backward compat */
 void mode0(uint8_t thisFan) {
-  EM_F = CHSV(beatsin8(rFS(thisFan, 7), rFS(thisFan, 1), rFS(thisFan, 2), 0, rFS(thisFan, 5)) + rFS(thisFan, 3), 255, 255);
+  EM_F = CHSV(beatsin8(rFS(thisFan, 7), rFS(thisFan, 1), rFS(thisFan, 2), 0, rFS(thisFan, 5)) + rFS(thisFan, 3), beatsin8(rFS(thisFan, 7), rFS(thisFan, 4), rFS(thisFan, 6), 0, rFS(thisFan, 5)), 255);
 }
 
 //-- mode1() -----------------------------------------------------------------------------------------------
 /* Single Spinner
 // Settings: 1 = Hue (Overridden by 3); 2 = 0 -> Clockwise, 1+ -> Counterclockwise;
-//           3 = Rainbowmode? 0 -> No, 1+ -> Rainbow; 4 = BPM of Rainbow shift;
+//           3 = Rainbowmode? 0 -> No, 1 -> Rainbow, 2 -> Sparkler; 4 = BPM of Rainbow shift;
 //           5 = Blade Offset; 6 = Fade Speed (good to match BPM); 7 = Spin Speed BPM */
 void mode1(uint8_t thisFan) {
   uint8_t theHue;
@@ -187,8 +191,11 @@ void mode1(uint8_t thisFan) {
     case 0 :
       theHue = rFS(thisFan, 1);
       break;
-    default :
+    case 1 :
       theHue = beat8(rFS(thisFan, 4));
+      break;
+    default :
+      theHue = random8(255);      
   }
   EM_F.fadeToBlackBy(rFS(thisFan, 6));
   switch (rFS(thisFan, 2)) {
@@ -220,7 +227,7 @@ void mode2(uint8_t thisFan) {
 //-- mode3() -----------------------------------------------------------------------------------------------
 /* Four-point spinner
 // Settings: 1 = Hue (Overridden by 3); 2 = 0 -> Clockwise, 1+ -> Counterclockwise;
-//           3 = Rainbowmode? 0 -> No, 1+ -> Rainbow;
+//           3 = Rainbowmode? 0 -> No, 1 -> Rainbow, 2+ -> Sparkler;
 //           4 = BPM of Rainbow shift; 5 = Per Blade Hue Shift; 6 = Fade Speed (good to match twice BPM);
 //           7 = Spin Speed BPM  */
 void mode3(uint8_t thisFan) {
@@ -233,8 +240,11 @@ void mode3(uint8_t thisFan) {
     case 0 :
       theHue = rFS(thisFan, 1);
       break;
-    default :
+    case 1 :
       theHue = beat8(rFS(thisFan, 4));
+      break;
+    default :
+      theHue = random8(255);      
   }
   EM_F.fadeToBlackBy(rFS(thisFan, 6));
   if (rFS(thisFan, 2) > 0) {
@@ -253,7 +263,7 @@ void mode3(uint8_t thisFan) {
 
 //-- mode4() -----------------------------------------------------------------------------------------------
 /* Double-scan
-// Settings: 1 = Hue (Overridden by 3); 2 = Rotation Offset; 3 = Rainbowmode? 0 -> No, 1 -> Rainbow
+// Settings: 1 = Hue (Overridden by 3); 2 = Rotation Offset; 3 = Rainbowmode? 0 -> No, 1 -> Rainbow, 2+ -> Sparkler;
 //           4 = BPM of Rainbow shift; 5 = Per Blade Hue Shift; 6 = Fade Speed (good to match BPM);
 //           7 = Spin Speed BPM  */
 void mode4(uint8_t thisFan) {
@@ -266,8 +276,11 @@ void mode4(uint8_t thisFan) {
     case 0 :
       theHue = rFS(thisFan, 1);
       break;
-    default :
+    case 1 :
       theHue = beat8(rFS(thisFan, 4));
+      break;
+    default :
+      theHue = random8(255);      
   }
   EM_F.fadeToBlackBy(rFS(thisFan, 6));
   EM_F[(scale8(beat8(bpm), LedsPerFan - 1) + rFS(thisFan, 2)) % LedsPerFan] = CHSV(theHue, 255, 255);
@@ -277,7 +290,7 @@ void mode4(uint8_t thisFan) {
 //-- mode5() -----------------------------------------------------------------------------------------------
 /* Double Spinner
 // Settings: 1 = Hue (Overridden by 3); 2 = 0 -> Clockwise, 1+ -> Counterclockwise;
-//           3 = Rainbowmode? 0 -> No, 1+ -> Rainbow;
+//           3 = Rainbowmode? 0 -> No, 1 -> Rainbow; 2+ -> Sparkler
 //           4 = BPM of Rainbow shift; 5 = Per Blade Hue Shift; 6 = Fade Speed (good to match BPM);
 //           7 = Spin Speed BPM */
 void mode5(uint8_t thisFan) {
@@ -290,8 +303,11 @@ void mode5(uint8_t thisFan) {
     case 0 :
       theHue = rFS(thisFan, 1);
       break;
-    default :
+    case 1 :
       theHue = beat8(rFS(thisFan, 4));
+      break;
+    default :
+      theHue = random8(255);      
   }
   EM_F.fadeToBlackBy(rFS(thisFan, 6));
   if (rFS(thisFan, 2) > 0) {
@@ -421,31 +437,92 @@ void mode10(uint8_t thisFan) {
 
 //-- smode0() -----------------------------------------------------------------------------------------------
 /* Hue Shift
-// Settings: 1 = Starting Hue; 2 = Ending Hue; 3 = Hue Offset; 5 = Phase Offset; 7 = Rate in BPM */
+// Settings: 1 = Starting Hue; 2 = Ending Hue; 3 = Hue Offset; 5 = Phase Offset; 7 = Rate in BPM 
+//           4 = Starting Saturation; 6 = Ending Saturation - Added in these positions for backward compat */
+
 void smode0(uint8_t thisStrip) {
-  EM_S = CHSV(beatsin8(rSS(thisStrip, 7), rSS(thisStrip, 1), rSS(thisStrip, 2), 0, rSS(thisStrip, 5)) + rSS(thisStrip, 3), 255, 255);
+  EM_S = CHSV(beatsin8(rSS(thisStrip, 7), rSS(thisStrip, 1), rSS(thisStrip, 2), 0, rSS(thisStrip, 5)) + rSS(thisStrip, 3), beatsin8(rSS(thisStrip, 7), rSS(thisStrip, 3), rSS(thisStrip, 5), 0, rSS(thisStrip, 5)), 255);
 
 }
-
 //-- smode1() -----------------------------------------------------------------------------------------------
-/* Single Color Strip
-// Settings: 1 = Hue */
+/* Single runner
+// Settings: 1 = Hue (Overridden by 3); 2 = 0 -> Clockwise, 1+ -> Counterclockwise;
+//           3 = Rainbowmode? 0 -> No, 1 -> Rainbow; 2+ -> Sparkler; 4 = BPM of Rainbow shift;
+//           5 = Blade Offset; 6 = Fade Speed (good to match BPM); 7 = Spin Speed BPM */
 void smode1(uint8_t thisStrip) {
-  EM_S = CHSV(rSS(thisStrip, 1), 255, 255);
+  uint8_t theHue;
+  uint8_t bpm = rSS(thisStrip, 7);
+  uint8_t fbo = rSS(thisStrip,5);
+
+  switch (rSS(thisStrip, 3)) {
+    case 0 :
+      theHue = rSS(thisStrip, 1);
+      break;
+    case 1 :
+      theHue = beat8(rSS(thisStrip, 4));
+      break;
+    default :
+      theHue = random8(255);
+  }
+  EM_S.fadeToBlackBy(rSS(thisStrip, 6));
+  switch (rSS(thisStrip, 2)) {
+    case 0 :
+      EM_S[(LedsPerStrip - 1 - scale8(beat8(bpm), LedsPerStrip - 1) + fbo) % LedsPerStrip] = CHSV(theHue, 255, 255);
+      break;
+    default :
+      EM_S[(scale8(beat8(bpm), LedsPerStrip - 1) + fbo) % LedsPerStrip] = CHSV(theHue, 255, 255);
+  }
 }
 
 //-- smode2() -----------------------------------------------------------------------------------------------
-/* Single color pulse
-// Settings: 1 = Hue, 7 = BPM (60 / BPM = Time for fade cycle)) */
+/* Split Halves
+// Settings: 7 = BPM of pulse; 1 = first half hue; 2 = second half hue; 4 = Strip Phase Offset; 5 = Per half phase offset;
+//           6 = Pulse? 0 -> No, 1 -> Sin, 2 -> Sawtooth In, 3 -> Sawtooth Out, 4+ -> Triangle */
 void smode2(uint8_t thisStrip) {
-  EM_S = CHSV(rSS(thisStrip, 1), 255, beatsin8(rSS(thisStrip, 7), 0, 255));
+  uint8_t beat;
+  uint8_t bpm = rSS(thisStrip, 7);
+  uint8_t fpo = rSS(thisStrip, 4);
+  uint8_t pso = rSS(thisStrip, 5);
+  uint8_t huea = rSS(thisStrip,1);
+  uint8_t hueb = rSS(thisStrip,2);
+  switch (rSS(thisStrip, 6)) {
+    case 0 :
+      EM_S1 = CHSV(hueb, 255, 255);
+      EM_S2 = CHSV(huea, 255, 255);
+      return;
+    case 1 :
+      EM_S1 = CHSV(huea, 255, beatsin8(bpm, 0, 255, 0, fpo));
+      EM_S2 = CHSV(hueb, 255, beatsin8(bpm, 0, 255, 0, pso + fpo));
+      return;
+    case 2 :
+      beat = beat8(bpm) + fpo;
+      break;
+    case 3 :
+      beat = 255 - beat8(bpm) + fpo;
+      break;
+    default :
+      beat = triwave8(beat8(bpm)) + fpo;
+  }
+  EM_S1 = CHSV(huea, 255, beat);
+  EM_S2 = CHSV(hueb, 255, beat + pso);
 }
 
+
 //-- smode3() -----------------------------------------------------------------------------------------------
-/* Running full rainbow
-// Settings: 7 = Speed in BPM */
+/* Rainbow
+// Settings: 1 = Chance of Sparkles (0-255); 2 = Hue Steps per LED -- 25 shows a full rainbow; 
+//           3 = Strip Hue Offset; 4 = 0 -> Normal Rotation, 1+ -> Reverse Rotation; 7 = Speed of Rotation  */
 void smode3(uint8_t thisStrip) {
-  EM_S.fill_rainbow(beat8(rSS(thisStrip, 7)), 25); // 25 is the steps between hues between LEDs which aligns the rainbow
+  switch (rSS(thisStrip, 4)) {
+    case 0 :
+      EM_S.fill_rainbow(beat8(rSS(thisStrip, 7)) + rSS(thisStrip, 3), rSS(thisStrip, 2)); 
+      break;
+    default :
+      EM_S.fill_rainbow(255 - (beat8(rSS(thisStrip, 7)) + rSS(thisStrip, 3)), rSS(thisStrip, 2)); 
+  }
+  if (random8() < rSS(thisStrip, 1)) {
+    (*strip[thisStrip][0])[random8(LedsPerStrip)] += CRGB::White;
+  }
 }
 
 //-- smode4() -----------------------------------------------------------------------------------------------
@@ -468,10 +545,10 @@ void smode5(uint8_t thisStrip) {
 }
 
 //-- smode6() -----------------------------------------------------------------------------------------------
-/* Double-scan
-// Settings: 1 = Hue (Overridden by 3); 2 = Rotation Offset; 3 = Rainbowmode? 0 -> No, 1 -> Rainbow
-//           4 = BPM of Rainbow shift; 5 = Per Blade Hue Shift; 6 = Fade Speed (good to match BPM);
-//           7 = Spin Speed BPM  */
+/* Single-scan
+// Settings: 1 = Hue (Overridden by 3); 2 = Position Offset; 3 = Rainbowmode? 0 -> No, 1 -> Rainbow, 2 -> Sparkler
+//           4 = BPM of Rainbow shift on Rainbowmode 1; 6 = Fade Speed (good to match BPM);
+//           7 = Run Speed BPM  */
 void smode6(uint8_t thisStrip) {
   uint8_t theHue, rbm, shift;
   rbm = rSS(thisStrip, 3);
@@ -482,20 +559,22 @@ void smode6(uint8_t thisStrip) {
     case 0 :
       theHue = rSS(thisStrip, 1);
       break;
-    default :
+    case 1 :
       theHue = beat8(rSS(thisStrip, 4));
+      break;
+    default :
+      theHue = random8(255);
   }
   EM_S.fadeToBlackBy(rSS(thisStrip, 6));
-  EM_S[(scale8(beat8(bpm), LedsPerStrip - 1) + rSS(thisStrip, 2)) % LedsPerStrip] = CHSV(theHue, 255, 255);
-  EM_S[(LedsPerStrip - 1 - scale8(beat8(bpm), LedsPerStrip - 1) + rSS(thisStrip, 2)) % LedsPerStrip] = CHSV(theHue + shift, 255, 255);
+  EM_S[(scale8(beatsin8(bpm), LedsPerStrip - 1) + rSS(thisStrip, 2)) % LedsPerStrip] = CHSV(theHue, 255, 255);
 }
 
+
 //-- smode7() -----------------------------------------------------------------------------------------------
-/* Double Runner
-// Settings: 1 = Hue (Overridden by 3); 2 = 0 -> Clockwise, 1+ -> Counterclockwise;
-//           3 = Rainbowmode? 0 -> No, 1+ -> Rainbow;
-//           4 = BPM of Rainbow shift; 5 = Per Blade Hue Shift; 6 = Fade Speed (good to match BPM);
-//           7 = Spin Speed BPM */
+/* Double-scan
+// Settings: 1 = Hue (Overridden by 3); 2 = Position Offset; 3 = Rainbowmode? 0 -> No, 1 -> Rainbow, 2 -> Sparkler
+//           4 = BPM of Rainbow shift; 5 = Per Runner Hue Shift; 6 = Fade Speed (good to match BPM);
+//           7 = Run Speed BPM  */
 void smode7(uint8_t thisStrip) {
   uint8_t theHue, rbm, shift;
   rbm = rSS(thisStrip, 3);
@@ -506,8 +585,38 @@ void smode7(uint8_t thisStrip) {
     case 0 :
       theHue = rSS(thisStrip, 1);
       break;
-    default :
+    case 1 :
       theHue = beat8(rSS(thisStrip, 4));
+      break;
+    default :
+      theHue = random8(255);
+  }
+  EM_S.fadeToBlackBy(rSS(thisStrip, 6));
+  EM_S[(scale8(beat8(bpm), LedsPerStrip - 1) + rSS(thisStrip, 2)) % LedsPerStrip] = CHSV(theHue, 255, 255);
+  EM_S[(LedsPerStrip - 1 - scale8(beat8(bpm), LedsPerStrip - 1) + rSS(thisStrip, 2)) % LedsPerStrip] = CHSV(theHue + shift, 255, 255);
+}
+
+//-- smode8() -----------------------------------------------------------------------------------------------
+/* Double Runner
+// Settings: 1 = Hue (Overridden by 3); 2 = 0 -> Clockwise, 1+ -> Counterclockwise;
+//           3 = Rainbowmode? 0 -> No, 1 -> Rainbow, 2 -> Sparkler;
+//           4 = BPM of Rainbow shift; 5 = Per Runner Hue Shift; 6 = Fade Speed (good to match BPM);
+//           7 = Run Speed BPM */
+void smode8(uint8_t thisStrip) {
+  uint8_t theHue, rbm, shift;
+  rbm = rSS(thisStrip, 3);
+  shift = rSS(thisStrip, 5);
+  uint8_t bpm = rSS(thisStrip, 7);
+
+  switch (rbm) {
+    case 0 :
+      theHue = rSS(thisStrip, 1);
+      break;
+    case 1 :
+      theHue = beat8(rSS(thisStrip, 4));
+      break;
+    default :
+      theHue = random8(255);
   }
   EM_S.fadeToBlackBy(rSS(thisStrip, 6));
   if (rSS(thisStrip, 2) > 0) {
@@ -645,7 +754,7 @@ void loop() {
   #if NumberOfFans
     remap();                       //***Always run the remap function just before calling show().***
   #endif
-  FastLED.delay(13); // This calls show as many times before the next FPS-based recalc
+  FastLED.delay((1000 / FRAMES_PER_SECOND)); // This calls show as many times before the next FPS-based recalc
 }
 
 
@@ -710,7 +819,7 @@ void initSettings() {
 void remap() {
   for (uint8_t i = 0; i < NUM_LEDS; i++) {
     if ( (i % LedsPerFan == 0) || (i % LedsPerFan == 1) ) {
-      actual[i] = leds[(floor(i / LedsPerFan) * LedsPerFan) + 10 + (i % 12)];
+      actual[i] = leds[((i / LedsPerFan) * LedsPerFan) + 10 + (i % 12)];
     } else {
       actual[i] = leds[i - 2];
     }
@@ -738,7 +847,7 @@ void processFans() {
 void processStrips() {
   for (uint8_t i = 0; i < NumberOfStrips; i++) { // Step through each strip 0 through N-1
     if (rSS(i, 0) >= NumberOfStripModes) {
-      wFS(i, 0, 0); // Sanity check.
+      wSS(i, 0, 0); // Sanity check.
     }
     smodefun[rSS(i, 0)](i);
   }
@@ -905,9 +1014,6 @@ void breakfast() {
             Serial.print("  ");
           }
           Serial.println("<");
-        }
-        if (gMap[1][1]) {
-        Serial.println(timedelta);
         }
         break;
       case 64 : // @ (at symbol) - Apply to all fans
