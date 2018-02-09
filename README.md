@@ -1,9 +1,9 @@
 # HD120-Controller
 ### Arduino sketch to act as a custom controller for Corsair HD120 RGB Fans
 
-Copyright 2017 Kit Parenteau
+Copyright 2018 Kit Parenteau with code contributed by Bud Griffin
 
-Version score: 0.2.1.1
+Version score: 0.2.1.3 + Fan Type - Now handles Mixed HD and LL fans!
 
 The lighting controller that comes standard for HD120 RGB fans left something to be desired.
 This code allows a 5V Arduino AVR to be used as a controller for the fan lighting.
@@ -46,6 +46,7 @@ Commands consist of a header character followed by any necessary options.
 $ | Load settings from memory
 ? | Query current live settings
 @ | Set all fans (Only applies to fans, not strips)
+& | Set full group
 
 Any character that is not part of a continuing command or a header will be discarded and disregarded.
 
@@ -91,6 +92,9 @@ A question mark. No further input needed. Sends the current live settings across
 
 An at symbol followed by two integers with arbitrary separation. Shortcut to set a given Item to a given Value on all fans simultaneously. Sets LIVE values. Only affects fans, not strips.
 
+##### Set All Fans
+
+An ampersand symbol followed by nine integers with arbitrary separation. Shortcut to set all of the items in one group at a time. MUST have group number and all eight values otherwise it will time out and/or cause chaos.
 
 #### Default groups:
 
@@ -131,7 +135,7 @@ Setting | Purpose
 5 | Blue channel value
 
 ##### Sync Timing
-When global mode item 6 ius set to a rate above zero, the controller will enter Sync Timing Mode. At the speed of the rate, it will move stage settings to live, then send a "Ping" across Serial, consisting of a single question mark. Stage settings can be configured by the computer immediately after receiving a ping and they will be set to live on the next beat. WARNING: The serial port MUST be read by the computer when Sync Timing is enabled otherwise the serial buffer on the controller will overflow and hamper performance severely.
+When global mode item 6 is set to a rate above zero, the controller will enter Sync Timing Mode. At the speed of the rate, it will move stage settings to live, then send a "Ping" across Serial, consisting of a single question mark. Stage settings can be configured by the computer immediately after receiving a ping and they will be set to live on the next beat. WARNING: The serial port MUST be read by the computer when Sync Timing is enabled otherwise the serial buffer on the controller will overflow and hamper performance severely.
 
 ##### Fan settings:
 
@@ -151,10 +155,12 @@ Setting | Purpose
 1 | Starting Hue
 2 | Emding Hue
 3 | Hue Offset
+4 | Starting Saturation
 5 | Phase Offset (Note 2)
+6 | Ending Saturation
 7 | Rate
 
-Hue Offset allows passing through Red between hues. For example, Start 128 End 255 Phase Offset 64 will start at 192 and end at 64.
+Hue Offset allows passing through Red between hues. For example, Start 128 End 255 Phase Offset 64 will start at 192 and end at 64. The use of saturation values is recommended. 0 is white. 255 is full color.
 
 1 ==> Single-point  Spinner - A rotating light point.
 
@@ -162,9 +168,9 @@ Setting | Purpose
 ---: | :--- 
 1 | Hue (Overridden by 3)
 2 | 0 = Clockwise, 1+ = Counterclockwise
-3 | 0 = Use Hue; 1+ = Rainbow Mode - Runs trhough all hues - Overrides 1
+3 | 0 = Use Hue; 1 = Rainbow Mode - Runs through all hues - Overrides 1; 2 = Sparkler Mode
 4 | Rate of rainbow change
-5 | Blade Offset 0 - 11 (zero trhough number of leds per fan) - Offsets the position of the "blade" dot
+5 | Blade Offset 0 - 11 (zero through number of leds per fan) - Offsets the position of the "blade" dot
 6 | Fade Speed - After the dot leaves a LED, fade its trail
 7 | Spin Rate
 
@@ -175,6 +181,8 @@ Setting | Purpose
 ---: | :--- 
 1 | Chance of Sparkles - Very high will be a 60 FPS fade to white for the fan.
 2 | Hue Steps per LED - 21 shows a full rainbow on the fan, 0 causes the whole fan to fade colors at once
+3 | Fan Hue Offset
+4 | 0 = Normal Rotation; 1 = Reverse Rotation
 7 | Rate of rainbow rotation - 0 is static
 
 3 ==> Four-point spinner
@@ -183,7 +191,7 @@ Setting | Purpose
 ---: | :--- 
 1 | Hue (Overridden by 3)
 2 | 0 = Clockwise, 1+ = Counterclockwise
-3 | 0 = Use Hue; 1+ = Rainbow Mode - Runs trhough all hues - Overrides 1
+3 | 0 = Use Hue; 1 = Rainbow Mode - Runs through all hues - Overrides 1; 2 = Sparkler
 4 | Rate of rainbow change
 5 | Per Blade Hue Shift
 6 | Fade Speed - After the dot leaves a LED, fade its trail
@@ -195,7 +203,7 @@ Setting | Purpose
 ---: | :--- 
 1 | Hue (Overridden by 3)
 2 | Rotation Offset = 0 - 11 (Zero through LedsPerFan - 1)
-3 | 0 = Use Hue; 1+ = Rainbow Mode - Runs trhough all hues - Overrides 1
+3 | 0 = Use Hue; 1 = Rainbow Mode - Runs through all hues - Overrides 1; 2 = Sparkler
 4 | Rate of rainbow change
 5 | Per Blade Hue Shift
 6 | Fade Speed - After the dot leaves a LED, fade its trail
@@ -207,7 +215,7 @@ Setting | Purpose
 ---: | :--- 
 1 | Hue (Overridden by 3)
 2 | 0 = Clockwise, 1+ = Counterclockwise
-3 | 0 = Use Hue; 1+ = Rainbow Mode - Runs trhough all hues - Overrides 1
+3 | 0 = Use Hue; 1 = Rainbow Mode - Runs through all hues - Overrides 1; 2 = Sparkler
 4 | Rate of rainbow change
 5 | Per Blade Hue Shift
 6 | Fade Speed - After the dot leaves a LED, fade its trail
@@ -220,6 +228,8 @@ Setting | Purpose
 1 | Hue Multiplier
 2 | Beat Multiplier
 7 | Rate
+
+Honestly, nobody knows much about this one.
 
 7 ==> Split Sides
 
@@ -282,6 +292,17 @@ Several interesting effects can be created with various values in the modes. Usu
 
 
 Changelog
+0.2.1.3 - February 8, 2018
+* ADDED: Mixed LL/HD fan handling - Many thanks to Bud Griffin!
+* ADDED: Sparkler mode to several modes
+* FIXED: Invalid Strip modes will no longer cause a controller crash
+* ADDED: Use the & prefix to address a whole group at once
+* ADDED: Saturation Start/End to Hue Shift mode to allow pastels and white
+* IMPROVED: Converted segment handling to reduce memory footprint, allowing more than eight fans and four strips as an example
+* FORGOT: Documentation on Strip Modes, which are getting more interesting
+* REMOVED: Several old, commented code segments and squishy comments
+
+
 0.2.1.1 - May 13, 2017
 * IMPROVED: Removed need for group number in All-Fan prefix
 
