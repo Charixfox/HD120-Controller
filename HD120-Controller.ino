@@ -6,7 +6,7 @@
           4      7
             5  6
 
-    Version score 0.2.1.3 - RC FI
+    Version score 0.2.2.3 - RC FI - FT+
 
     TODO...
     - Multi-Fan coordination modes. For example a chaser that traverses fans and is side-aware.
