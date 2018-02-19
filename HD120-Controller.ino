@@ -16,14 +16,15 @@
 #define FASTLED_INTERNAL
 #include "FastLED.h"                // The actual LED control code. Library added aseparately.
 #include <avr/eeprom.h>             // Default EEPROM library from the IDE
+#include "HID-Project.h"            // RawHID Support for programming
 
 // Uncomment the following line to enable different types of fans
-//#define FAN_TYPES                   // You'll also need to edit FanData theFans a few lines below, remove any fans if you have less than six
+#define FAN_TYPES                   // You'll also need to edit FanData theFans a few lines below, remove any fans if you have less than six
 
 #ifdef FAN_TYPES
 #include "FanTypes.h"
                                     // List your fans by type in order, valid types are HD120 & LL120
-constexpr FanData theFans[] = { LL120, HD120, LL120, LL120, HD120, HD120 };
+constexpr FanData theFans[] = { LL120, LL120, LL120, HD120, HD120, HD120, HD120, HD120, HD120 };
 #endif
 
 FASTLED_USING_NAMESPACE
@@ -167,7 +168,7 @@ CRGBSet *fan[NumberOfFans];      // Fan Subset Array
 
 #endif
 #if NumberOfStrips
-CRGBSet *strip[NumberOfStrips];                 // Strips Array
+CRGBSet *strip[NumberOfStrips + 1];                 // Strips Array
 #endif
 uint8_t gSettings[SettingGroups][SettingItems]; // Settings Array
 uint8_t sSettings[SettingGroups][SettingItems]; // Stage Settings Array
@@ -748,31 +749,44 @@ static gmodefunarr gmodefun[NumberOfGlobalModes] = {
 };
 
 // Serial Handling
-int inByte = 0;
+uint8_t inByte = 0;
 
 // Save handling
 uint8_t EEMEM eeHeader[3], eeSettings[(SettingGroups * SettingItems)]; // Stores the data in EEPROM when saved
 uint8_t eeCompat[3]; // For checking the EEPROM header
 
+// RawHID Data buffer. Must exceed 64-byte packet size.
+uint8_t rawhidData[128];
+
+
 //==== Arduino setup Function ===============
 void setup() {
-  delay(3000); // 3 second delay for recovery -> This is IMPORTANT
+  delay(3000); // 3 second delay for recovery -> This is IMPORTANT 
+  // Not important. Need hard reset for recovery and the three seconds does nothing for the bootloader.
+  Serial.begin(115200);
+  RawHID.begin(rawhidData, sizeof(rawhidData));
+  // freeRam();
   #ifdef NumberOfFans
-    FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(actual, NUM_LEDS);
+    // Block Remap Testing  
+    //FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(actual, NUM_LEDS);
+    FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, NUM_LEDS);
   #endif
   #if NumberOfStrips
     FastLED.addLeds<LED_TYPE, STRIP_PIN, COLOR_ORDER>(stripLeds, STRIP_LEDS);
   #endif
   defineSets();
   initSettings();
-  Serial.begin(115200);
   checkStorage();
 }
 
+int timer1, timer2, timer3, timer4;
+uint8_t diag1, diag2, diag3;
 
 //==== Arduino Main Loop ====================
 void loop() {
+  timer1 = millis();
   FastLED.setBrightness(rGS(0)); // We'll do this first since Global may override it.
+  diag1 = 0;
   breakfast();
   #ifdef NumberOfFans
     processFans();
@@ -781,10 +795,15 @@ void loop() {
     processStrips();
   #endif
   processGlobal();
+  timer2 = millis() - timer1;
   #ifdef NumberOfFans
     remap();                       //***Always run the remap function just before calling show().***
   #endif
-  FastLED.delay(13); // This calls show as many times before the next FPS-based recalc
+  timer3 = millis() - timer1;
+  FastLED.show();
+  timer4 = millis() - timer1;
+  // Testing uncapped FPS to allow HID rate handling
+  // FastLED.delay(13); // This calls show as many times before the next FPS-based recalc
 }
 
 
@@ -803,7 +822,7 @@ void defineSets() {
 #ifdef NumberOfFans
   // Subsets are macroed now for needed memory savings
   // Set up full fans
-  uint8_t offset = 0;      // increase size of type for more than 256 leds 
+  uint8_t offset = 0;      // increase size of type for more than 256 leds (over three hubs of LL)
   for (uint8_t thisFan = 0; thisFan < NumberOfFans; thisFan++) {
     //fan[thisFan][0] = new CRGBSet(leds(offset, offset + LedsPerFan - 1));
     fan[thisFan] = new CRGBSet(leds(offset, offset + LedsPerFan - 1));
@@ -826,9 +845,60 @@ void initSettings() {
 
 #ifdef NumberOfFans
 //---- remap()----------------------------------------
-// Function to remap "leds" array to "actual" array -
+// Function to remap "leds" array to "actual" array  -
+// Testing fan-block-based remapping
 void remap() {
-  uint8_t i = 0;
+   uint8_t i = 0;
+   for (uint8_t thisFan = 0; thisFan < NumberOfFans; thisFan++) {
+    for (uint8_t thisLed = 0; thisLed < LedsPerFan; thisLed++, i++) {
+      if (thisLed < ShiftCCW) {
+        actual[thisLed] = leds[i + LedsPerFan - ShiftCCW];
+        if (diag1) { 
+          Serial.print(F("> F"));
+          Serial.print(thisFan); 
+          Serial.print(F(" LPF")); 
+          Serial.print(LedsPerFan); 
+          Serial.print(F(" L")); 
+          Serial.print(i); 
+          Serial.print(F(" l")); 
+          Serial.print(i + LedsPerFan - ShiftCCW); 
+          Serial.print(F(" -> a")); 
+          Serial.println(thisLed); 
+        }
+      }
+      else {
+        actual[thisLed] = leds[i - ShiftCCW];
+        if (diag1) { 
+          Serial.print(F("> F"));
+          Serial.print(thisFan); 
+          Serial.print(F(" LPF")); 
+          Serial.print(LedsPerFan); 
+          Serial.print(F(" L")); 
+          Serial.print(i); 
+          Serial.print(F(" l")); 
+          Serial.print(i - ShiftCCW); 
+          Serial.print(F(" -> a")); 
+          Serial.println(thisLed); 
+        }
+      }
+    }
+    i = i - LedsPerFan;
+    for (uint8_t thisLed = 0; thisLed < LedsPerFan; thisLed++, i++) {
+      leds[i] = actual[thisLed];
+        if (diag1) { 
+          Serial.print(F("< F"));
+          Serial.print(thisFan); 
+          Serial.print(F(" LPF")); 
+          Serial.print(LedsPerFan); 
+          Serial.print(F(" a")); 
+          Serial.print(thisLed); 
+          Serial.print(F(" -> l")); 
+          Serial.println(i); 
+        }
+    } // */
+  } // */
+  diag1 = 0;
+  /*uint8_t i = 0;
   for (uint8_t thisFan = 0; thisFan < NumberOfFans; thisFan++) {
     for (uint8_t thisLed = 0; thisLed < LedsPerFan; thisLed++, i++) {
       if (thisLed < ShiftCCW) {
@@ -838,12 +908,12 @@ void remap() {
         actual[i] = leds[i - ShiftCCW];
       }
     }
-  }
+  } //*/
 }
 
-//---- processFans() ---------------------------------
+/*---- processFans() ---------------------------------
 // Primary container to step through the fans and
-// call the mode function for each one
+// call the mode function for each one */
 void processFans() {
   for (uint8_t i = 0; i < NumberOfFans; i++) { // Step through each fan 0 through N-1
     if (rFS(i, 0) >= NumberOfModes) {
@@ -856,9 +926,9 @@ void processFans() {
 #endif
 
 #if NumberOfStrips
-//---- processStrips() ---------------------------------
+/*---- processStrips() ---------------------------------
 // Primary container to step through the strips and
-// call the mode function for each one
+// call the mode function for each one */
 void processStrips() {
   for (uint8_t i = 0; i < NumberOfStrips; i++) { // Step through each strip 0 through N-1
     if (rSS(i, 0) >= NumberOfStripModes) {
@@ -869,9 +939,9 @@ void processStrips() {
 }
 #endif
 
-//---- processGlobal() ---------------------------------
+/*---- processGlobal() ---------------------------------
 // Primary container to call the mode function for
-// the whole thing
+// the whole thing */
 void processGlobal() {
   if (rGS(1) >= NumberOfGlobalModes) {
     wGS(1, 0); // Sanity check.
@@ -879,43 +949,43 @@ void processGlobal() {
   gmodefun[rGS(1)]();
 }
 
-//---- rFS(fan, setting) -----------------------------
+/*---- rFS(fan, setting) -----------------------------
 // Read Fan Setting shorthand
-// 0 through N-1 translated to setting slot number
+// 0 through N-1 translated to setting slot number */
 uint8_t rFS(uint8_t i, uint8_t setting) {
   return gSettings[i + 1][setting];
 }
 
-//---- rSS(strip, setting) -----------------------------
+/*---- rSS(strip, setting) -----------------------------
 // Read Strip Setting shorthand
-// 0 through N-1 translated to setting slot number
+// 0 through N-1 translated to setting slot number */
 uint8_t rSS(uint8_t i, uint8_t setting) {
   return gSettings[i + NumberOfFans + 1][setting];
 }
 
-//---- rGS(strip, setting) -----------------------------
-// Read Global Setting shorthand
+/*---- rGS(strip, setting) -----------------------------
+// Read Global Setting shorthand */
 uint8_t rGS(uint8_t setting) {
   return gSettings[0][setting];
 }
 
-//---- wFS(fan, setting) ------------------------------
+/*---- wFS(fan, setting) ------------------------------
 // Write Fan Setting shorthand
-// 0 through N-1 translated to setting slot number
+// 0 through N-1 translated to setting slot number */
 void wFS(uint8_t i, uint8_t setting, uint8_t value) {
   // i = (i > NumberOfFans) ? 1 : i + 1;
   gSettings[i + 1][setting] = value;
 }
 
-//---- wSS(strip, setting) -----------------------------
+/*---- wSS(strip, setting) -----------------------------
 // Write Strip Setting shorthand
-// 0 through N-1 translated to setting slot number
+// 0 through N-1 translated to setting slot number */
 void wSS(uint8_t i, uint8_t setting, uint8_t value) {
   gSettings[i + NumberOfFans + 1][setting] = value;
 }
 
-//---- wGS(strip, setting) ----------------------------
-// Write Global Setting shorthand
+/*---- wGS(strip, setting) ----------------------------
+// Write Global Setting shorthand */
 void wGS(uint8_t setting, uint8_t value) {
   gSettings[0][setting] = value;
 }
@@ -937,9 +1007,17 @@ void breakfast() {
     uint8_t currentBeat = beat8(rGS(6));
     if (currentBeat < beatCheck) {
       memcpy(gSettings, sSettings, SettingGroups * SettingItems);
-      Serial.print("?");
+      Serial.print(F("?"));
     }
     beatCheck = currentBeat;
+  }
+  // RawHID testing 
+  auto rawhidBytes = RawHID.available(); // This will probably always be 64 or more so don't call the function repeatedly
+  if (rawhidBytes) {
+    while (rawhidBytes--) {
+      inByte = RawHID.read();
+      //We will do something with this after memory use testing.
+    }
   }
   while (Serial.available()) {
     //Got to here? We have serial. Let's Do A Thing with it, one spoonful at a time.
@@ -947,11 +1025,11 @@ void breakfast() {
     switch (inByte) {
       case 33 : // ! (Exclaimation point) - Save
         saveSettings();
-        Serial.println("Saved");
+        Serial.println(F("Saved"));
         break;
       case 36 : // $ (Dollar sign) - Load
         loadSettings();
-        Serial.println("Loaded");
+        Serial.println(F("Loaded"));
         break;
       case 38 : // & (Ampersand) - Shorthand to set all the items in one group at once. MUST have all eight or will time out and/or skip other setting commands
       {         //                 &g,s0,s1,s2,s3,s4,s5,s6,s7 - Group, settings 0-7
@@ -1014,16 +1092,21 @@ void breakfast() {
           //Serial.print(i);
           //Serial.print(" ");
           for (int q = 0; q < SettingItems; q++) {
-            Serial.print("^");
+            Serial.print(F("^"));
             Serial.print(i);
-            Serial.print(".");
+            Serial.print(F("."));
             Serial.print(q);
-            Serial.print("=");
+            Serial.print(F("="));
             Serial.print(gSettings[i][q]) ;
-            Serial.print("  ");
+            Serial.print(F("  "));
           }
-          Serial.println("<");
+          Serial.println(F("<"));
         }
+        Serial.println(freeRam());
+        Serial.println(timer2);
+        Serial.println(timer3);
+        Serial.println(timer4);
+        
 
         break;
       case 64 : // @ (at symbol) - Apply to all fans
@@ -1044,6 +1127,18 @@ void breakfast() {
           uint8_t ig = constrain(rg, 0, (SettingGroups - 1));
           uint8_t ii = constrain(ri, 0, (SettingItems - 1));
           sSettings[ig][ii] = iv;
+        }
+        break;
+      case 116 : // t (lower case letter t) for Testing
+        {
+          uint8_t i = Serial.parseInt(); 
+          delete strip[i];
+          strip[i] = new CRGBSet( stripLeds((i * LedsPerStrip), (((i + 1) * LedsPerStrip) - 1)));
+        }
+        break;
+      case 101 : // e for erase
+        {
+          diag1 = 1;
         }
         break;
       default :
@@ -1084,3 +1179,19 @@ void saveSettings() {
 void loadSettings() {
   eeprom_read_block(gSettings, eeSettings, SettingGroups * SettingItems);
 }
+
+
+
+
+//==============================================================
+//Memory Debug Function
+int freeRam() {
+  int size = 1024; // Use 2048 with ATmega328
+  byte *buf;
+
+  while ((buf = (byte *) malloc(--size)) == NULL)
+    ;
+
+  free(buf);
+
+  return size;}
