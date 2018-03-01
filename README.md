@@ -1,3 +1,40 @@
+NOTE: 2.1.3 may cause the controller to not respond properly to soft resets to bootloader. This applies to Leonardo type ATMega32u* controllers only, like the Pro Micro and Beetle. If you are unable to upload this new version because you went to 2.1.3, there are two options to recover it:
+1: Send an initial soft reset just before the upload starts. The double soft reset corrects the issue and properly enters bootloader. This can be done by opening the com port at 1200 baud and closing it. For example, on Windows in the command prompt:
+```
+mode COM6 BAUD=1200 parity=N data=8 stop=1
+```
+Replace COM6 with the com port of the Arduino.
+
+Timing is important, as the second reset from the Arduino IDE must reeach the Arduino after it finished the first reset (about 500ms) and before 3 seconds after the first reset.
+
+2: You can do a hardware or double-soft reset to put it into the bootloader and use avrdude to send the firmware.
+
+You MUST know the port the Ardiono Bootloader will be on. It is NOT the same com port as the normal run port. You can find out in Windows by watching Computer Management in the Ports section of Device Manager for the proper port number.
+
+To do this, you must compile and SAVE the firmware (You can do this by pressing Ctrl-Alt-S on Windows IDE). On Windows, the firmware will be saved under Documents\Arduino\(Your Sketch)\sketchname.ino.board.hex. For example:
+```
+C:/Users/kit/Documents/Arduino/HD120_Controller/HD120_Controller.ino.leonardo.hex
+```
+
+DO NOT use the one that mentions "boot" in the filename.
+
+On Windows in a command prompt, change directory to:
+```
+C:\Program Files (x86)\Arduino\hardware\tools\avr\bin
+```
+
+And run a command similar to:
+```
+avrdude -v -C../etc/avrdude.conf -patmega32u4 -cavr109 -PCOM9 -b57600 -D -V -Uflash:w:C:/Users/kit/Documents/Arduino/HD120_Controller/HD120_Controller.ino.leonardo.hex:i 
+```
+
+Replace only the location and name of the .hex file and the COM port number with information appropropriate to your computer.
+
+You can do a hardware reset by temporarily connecting the RST pin to ground.
+You can use the mode command above twice to force a soft reset.
+
+I will work on a more user-friendly way to fix this in the near future if I am able to.
+
 # HD120-Controller
 ### Arduino sketch to act as a custom controller for Corsair HD120 RGB Fans
 
@@ -292,6 +329,10 @@ Several interesting effects can be created with various values in the modes. Usu
 
 
 Changelog
+0.2.2.0 - March 1, 2018
+* IMPROVED: Memory use reduced by in situ shuffling of remap that no longer requires a second array
+* FIXED: Sketch caused Arduino to no longer respond correctly to reset.
+
 0.2.1.3 - February 8, 2018
 * ADDED: Mixed LL/HD fan handling - Many thanks to Bud Griffin!
 * ADDED: Sparkler mode to several modes
