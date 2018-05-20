@@ -40,12 +40,14 @@ I will work on a more user-friendly way to fix this in the near future if I am a
 
 Copyright 2018 Kit Parenteau with code contributed by Bud Griffin
 
-Version score: 0.2.1.3 + Fan Type - Now handles Mixed HD and LL fans!
+Version score: 0.2.2.0 + Fan Type - Now handles Mixed HD and LL fans!
 
 The lighting controller that comes standard for HD120 RGB fans left something to be desired.
 This code allows a 5V Arduino AVR to be used as a controller for the fan lighting.
-* Tested on Arduino Pro Micro
-* FastLED Library 3.1 or newer, and Arduino.cc IDE 1.8.1 or newer are required to compile
+* Requires Pro Micro or other ATMega32u4-based Arduino (Leonardo type) due to HID handling. Others can be used with code changes, however some with external UARTs (most of them) have been known to drop data from serial, which is a hardware limitation.
+* FastLED Library 3.1 or newer, HID-Project library 2.4.4, and Arduino.cc IDE 1.8.1 or newer are required to compile
+
+In the Arduino IDE, install the necessary libraries by clicking the Sketch Menu -> Include Library -> Manage Libraries. You can search for FastLED and HID-Project respectively and install the newest versions.
 
 This is NOT the same software used to make the Prototype video. Version 0.2.0.0 was used to make the [music demo](https://www.youtube.com/watch?v=9Bf8jwD-sW4). The prototype video was just the 100-line demo from FastLED.
 
